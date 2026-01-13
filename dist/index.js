@@ -41,9 +41,7 @@ async function main() {
             console.log(chalk.gray(`   - Add ${isSolana ? "SOLANA_PRIVATE_KEY" : "PRIVATE_KEY"}`));
         }
         console.log(chalk.gray("   - Add OPENAI_API_KEY"));
-        if (answers.storageType === "ipfs") {
-            console.log(chalk.gray("   - Add PINATA_JWT (get one at pinata.cloud)"));
-        }
+        console.log(chalk.gray("   - Add PINATA_JWT (get one at pinata.cloud)"));
         console.log("");
         step++;
         // Step 4: Fund wallet
@@ -53,7 +51,7 @@ async function main() {
         }
         else {
             console.log(chalk.bold.white(`${step}. Fund your wallet with testnet ETH`));
-            console.log(chalk.gray(`   → https://portal.cdp.coinbase.com/products/faucet\n`));
+            console.log(chalk.gray(`   → https://cloud.google.com/application/web3/faucet/ethereum/sepolia\n`));
         }
         step++;
         // Step 5: Start/deploy server BEFORE registering

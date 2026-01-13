@@ -118,24 +118,24 @@ export function generateSolanaRegistrationJson(answers, chain) {
     }
     return JSON.stringify(registration, null, 2);
 }
-export function generateSolanaRegisterScript(answers, chain) {
-    const ipfsUpload = answers.storageType === "ipfs";
+export function generateSolanaRegisterScript(_answers, chain) {
     return `/**
  * Solana 8004 Agent Registration Script
- *
+ * 
  * This script registers your agent on the 8004 Solana program.
  * It performs the following steps:
- *
+ * 
  * 1. Reads your registration.json metadata
  * 2. Validates metadata using buildRegistrationFileJson() (adds correct type/version)
- * 3. ${ipfsUpload ? "Uploads validated metadata to IPFS via Pinata" : "Uses a web URL for metadata (you must host it)"}
+ * 3. Uploads validated metadata to IPFS via Pinata
  * 4. Calls the 8004 program to mint your agent NFT
  * 5. Returns your agent address for future reference
- *
+ * 
  * Requirements:
- * - SOLANA_PRIVATE_KEY in .env (wallet with SOL for fees)${ipfsUpload ? "\n * - PINATA_JWT in .env (for IPFS uploads)" : ""}
+ * - SOLANA_PRIVATE_KEY in .env (wallet with SOL for fees)
+ * - PINATA_JWT in .env (for IPFS uploads)
  * - ~0.01 SOL for transaction fees
- *
+ * 
  * Run with: npm run register
  *
  * @see https://www.npmjs.com/package/8004-solana
@@ -171,9 +171,9 @@ async function main() {
   if (!pinataJwt) {
     throw new Error('PINATA_JWT not set in .env - required for metadata upload');
   }
-
+  
   // Step 2: Setup Solana keypair
-  const secretKey = bs58.decode(privateKeyBase58);
+    const secretKey = bs58.decode(privateKeyBase58);
   const keypair = Keypair.fromSecretKey(secretKey);
   console.log('🔑 Registering from:', keypair.publicKey.toBase58());
 
@@ -219,16 +219,16 @@ async function main() {
   console.log('📋 Transaction:', \`${chain.explorer}/tx/\${result.signature}${chain.explorerSuffix}\`);
   console.log('🆔 Agent ID:', result.agentId?.toString() ?? 'Unknown');
   console.log('🔗 Asset:', result.asset?.toBase58() ?? 'Unknown');
-  console.log('📄 Metadata URI:', metadataUri);
+    console.log('📄 Metadata URI:', metadataUri);
 
-  // Update registration.json with the Solana reference
-  registration.registrations = [{
+    // Update registration.json with the Solana reference
+    registration.registrations = [{
     agentId: result.agentId?.toString(),
     asset: result.asset?.toBase58(),
     signature: result.signature,
     cluster: CLUSTER,
-  }];
-  await fs.writeFile('registration.json', JSON.stringify(registration, null, 2));
+    }];
+    await fs.writeFile('registration.json', JSON.stringify(registration, null, 2));
   console.log('\\n✅ registration.json updated with agent ID:', result.agentId?.toString());
 }
 
@@ -275,8 +275,8 @@ export async function* streamResponse(userMessage: string, history: AgentMessage
     const content = chunk.choices[0]?.delta?.content;
     if (content) {
       yield content;
-    }
   }
+}
 }
 `
         : "";
@@ -362,4 +362,128 @@ export async function generateResponse(userMessage: string, history: AgentMessag
   return chat(messages);
 }
 ${streamingCode}`;
+}
+export function generateSolanaReadme(answers, chain) {
+    const hasA2A = hasFeature(answers, "a2a");
+    const hasMCP = hasFeature(answers, "mcp");
+    const hasX402 = hasFeature(answers, "x402");
+    return `# ${answers.agentName}
+
+${answers.agentDescription}
+
+## Quick Start
+
+### 1. Install dependencies
+
+\`\`\`bash
+npm install
+\`\`\`
+
+### 2. Configure environment
+
+Edit \`.env\` and add your API keys:
+
+\`\`\`env
+# Already set if wallet was auto-generated
+SOLANA_PRIVATE_KEY=your_base58_private_key
+
+# Get from https://pinata.cloud (free tier works)
+PINATA_JWT=your_pinata_jwt
+
+# Get from https://platform.openai.com
+OPENAI_API_KEY=your_openai_key
+\`\`\`
+
+### 3. Fund your wallet
+
+Your agent wallet: \`${answers.agentWallet}\`
+
+Get devnet SOL from: https://faucet.solana.com/
+
+### 4. Register on-chain
+
+\`\`\`bash
+npm run register
+\`\`\`
+
+This will:
+- Validate your metadata using the 8004-solana SDK
+- Upload your agent metadata to IPFS
+- Register your agent on ${chain.name}
+- Output your agent address
+${hasA2A
+        ? `
+### 5. Start the A2A server
+
+\`\`\`bash
+npm run start:a2a
+\`\`\`
+
+Test locally: http://localhost:3000/.well-known/agent-card.json
+`
+        : ""}${hasMCP
+        ? `
+### ${hasA2A ? "6" : "5"}. Start the MCP server
+
+\`\`\`bash
+npm run start:mcp
+\`\`\`
+`
+        : ""}
+## Project Structure
+
+\`\`\`
+${answers.agentName.toLowerCase().replace(/\s+/g, "-")}/
+├── src/
+│   ├── register.ts      # Registration script
+│   ├── agent.ts         # LLM logic${hasA2A ? "\n│   └── a2a-server.ts   # A2A server" : ""}${hasMCP ? "\n│   └── mcp-server.ts   # MCP server" : ""}
+├── registration.json    # Agent metadata
+├── .env                 # Environment variables (keep secret!)
+└── package.json
+\`\`\`
+${hasX402
+        ? `
+## x402 Payments
+
+This agent has x402 payment support enabled. Protected endpoints require USDC payment.
+
+Payment configuration in \`.env\`:
+- \`X402_PAYEE_ADDRESS\` - Wallet to receive payments
+- \`X402_PRICE\` - Price per request (e.g., $0.001)
+`
+        : ""}
+## OASF Skills & Domains (Optional)
+
+Add capabilities and domain expertise to help others discover your agent.
+
+Edit \`registration.json\` and add:
+
+\`\`\`json
+{
+  "skills": [
+    "natural_language_processing/summarization",
+    "analytical_skills/coding_skills/text_to_code"
+  ],
+  "domains": [
+    "technology/software_engineering"
+  ]
+}
+\`\`\`
+
+Browse the full taxonomy: https://github.com/8004-org/oasf
+
+## Next Steps
+
+1. Update the endpoint URLs in \`registration.json\` with your production domain
+2. Customize the agent logic in \`src/agent.ts\`
+3. Deploy to a cloud provider (Vercel, Railway, etc.)
+4. Re-run \`npm run register\` if you change metadata
+
+## Resources
+
+- [8004 Protocol](https://eips.ethereum.org/EIPS/eip-8004)
+- [8004scan Explorer](https://www.8004scan.io/)
+- [8004-solana SDK](https://www.npmjs.com/package/8004-solana)
+- [OASF Taxonomy](https://github.com/8004-org/oasf)
+`;
 }

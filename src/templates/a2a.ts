@@ -45,20 +45,20 @@ const x402Server = new x402ResourceServer(facilitatorClient)
 
 app.use(
   paymentMiddleware(
-    {
-      'POST /a2a': {
+  {
+    'POST /a2a': {
         accepts: [
           {
             scheme: 'exact',
-            price: process.env.X402_PRICE || '$0.001',
+      price: process.env.X402_PRICE || '$0.001',
             network: X402_NETWORK,
             payTo: PAYEE_ADDRESS,
           },
         ],
         description: '${answers.agentDescription.replace(/'/g, "\\'")}',
         mimeType: 'application/json',
-      },
     },
+  },
     x402Server,
   ),
 );

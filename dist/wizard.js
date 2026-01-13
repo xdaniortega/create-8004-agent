@@ -105,19 +105,10 @@ export async function runWizard() {
             when: (ans) => ans.features?.includes("a2a") ?? false,
         },
         {
-            type: "list",
-            name: "storageType",
-            message: "Registration metadata storage:",
-            choices: [
-                { name: "Base64 (on-chain, no external dependencies)", value: "base64" },
-                { name: "IPFS (Pinata)", value: "ipfs" },
-            ],
-        },
-        {
             type: "checkbox",
             name: "trustModels",
             message: "Supported trust models:",
-            choices: TRUST_MODELS.map((model) => ({ name: model, value: model, checked: true })),
+            choices: TRUST_MODELS.map((model) => ({ name: model, value: model, checked: model === "reputation" })),
         },
     ]);
     // Check if directory exists and get available name

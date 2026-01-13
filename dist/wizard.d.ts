@@ -7,7 +7,6 @@ export interface WizardAnswers {
     agentImage: string;
     features: ("a2a" | "mcp" | "x402")[];
     a2aStreaming: boolean;
-    storageType: "ipfs" | "base64";
     chain: ChainKey | SolanaChainKey;
     trustModels: TrustModel[];
     agentWallet: string;

@@ -8,9 +8,9 @@ import { hasFeature } from "./wizard.js";
 import {
     generatePackageJson,
     generateEnvExample,
-    generateRegistrationJson,
     generateRegisterScript,
     generateAgentTs,
+    generateReadme,
 } from "./templates/base.js";
 // Solana templates
 import {
@@ -19,6 +19,7 @@ import {
     generateSolanaRegistrationJson,
     generateSolanaRegisterScript,
     generateAgentTs as generateSolanaAgentTs,
+    generateSolanaReadme,
 } from "./templates/solana.js";
 // Shared templates (work for both EVM and Solana)
 import { generateA2AServer, generateAgentCard } from "./templates/a2a.js";
@@ -61,12 +62,12 @@ async function generateEVMProject(projectPath: string, answers: WizardAnswers): 
     const chain = CHAINS[answers.chain as keyof typeof CHAINS];
 
     await writeFile(projectPath, "package.json", generatePackageJson(answers));
-    await writeFile(projectPath, ".env", generateEnvExample(answers));
-    await writeFile(projectPath, "registration.json", generateRegistrationJson(answers, chain));
+    await writeFile(projectPath, ".env", generateEnvExample(answers, chain));
     await writeFile(projectPath, "src/register.ts", generateRegisterScript(answers, chain));
     await writeFile(projectPath, "src/agent.ts", generateAgentTs(answers));
     await writeFile(projectPath, "tsconfig.json", generateTsConfig());
     await writeFile(projectPath, ".gitignore", generateGitignore());
+    await writeFile(projectPath, "README.md", generateReadme(answers, chain));
 }
 
 /**
@@ -82,6 +83,7 @@ async function generateSolanaProject(projectPath: string, answers: WizardAnswers
     await writeFile(projectPath, "src/agent.ts", generateSolanaAgentTs(answers));
     await writeFile(projectPath, "tsconfig.json", generateTsConfig());
     await writeFile(projectPath, ".gitignore", generateGitignore());
+    await writeFile(projectPath, "README.md", generateSolanaReadme(answers, chain));
 }
 
 async function writeFile(projectPath: string, filePath: string, content: string): Promise<void> {

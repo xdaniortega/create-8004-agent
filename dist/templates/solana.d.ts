@@ -12,10 +12,11 @@ type SolanaChainConfig = (typeof SOLANA_CHAINS)[keyof typeof SOLANA_CHAINS];
 export declare function generateSolanaPackageJson(answers: WizardAnswers): string;
 export declare function generateSolanaEnv(answers: WizardAnswers): string;
 export declare function generateSolanaRegistrationJson(answers: WizardAnswers, chain: SolanaChainConfig): string;
-export declare function generateSolanaRegisterScript(answers: WizardAnswers, chain: SolanaChainConfig): string;
+export declare function generateSolanaRegisterScript(_answers: WizardAnswers, chain: SolanaChainConfig): string;
 /**
  * Generate agent.ts for Solana projects
  * This is identical to EVM - the LLM logic doesn't depend on blockchain
  */
 export declare function generateAgentTs(answers: WizardAnswers): string;
+export declare function generateSolanaReadme(answers: WizardAnswers, chain: SolanaChainConfig): string;
 export {};

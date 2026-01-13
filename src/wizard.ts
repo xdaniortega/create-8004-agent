@@ -30,7 +30,6 @@ export interface WizardAnswers {
     agentImage: string;
     features: ("a2a" | "mcp" | "x402")[];
     a2aStreaming: boolean;
-    storageType: "ipfs" | "base64";
     chain: ChainKey | SolanaChainKey;
     trustModels: TrustModel[];
     agentWallet: string;
@@ -56,7 +55,6 @@ interface RawAnswers {
     agentWallet: string;
     features: ("a2a" | "mcp" | "x402")[];
     a2aStreaming?: boolean; // Optional because of 'when' condition
-    storageType: "ipfs" | "base64";
     chain: ChainKey | SolanaChainKey;
     trustModels: TrustModel[];
 }
@@ -142,19 +140,10 @@ export async function runWizard(): Promise<WizardAnswers> {
             when: (ans: Partial<RawAnswers>) => ans.features?.includes("a2a") ?? false,
         },
         {
-            type: "list",
-            name: "storageType",
-            message: "Registration metadata storage:",
-            choices: [
-                { name: "Base64 (on-chain, no external dependencies)", value: "base64" },
-                { name: "IPFS (Pinata)", value: "ipfs" },
-            ],
-        },
-        {
             type: "checkbox",
             name: "trustModels",
             message: "Supported trust models:",
-            choices: TRUST_MODELS.map((model) => ({ name: model, value: model, checked: true })),
+            choices: TRUST_MODELS.map((model) => ({ name: model, value: model, checked: model === "reputation" })),
         },
     ]);
 

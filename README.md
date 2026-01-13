@@ -53,20 +53,19 @@ my-agent/
 | **A2A streaming**     | Enable Server-Sent Events (SSE) for streaming responses                                                        |
 | **MCP server**        | Enable Model Context Protocol tools                                                                            |
 | **x402 payments**     | Enable [Coinbase x402](https://docs.cdp.coinbase.com/x402/quickstart-for-sellers) USDC payments (EVM & Solana) |
-| **Storage**           | IPFS (Pinata) or Base64 on-chain (EVM only)                                                                    |
-| **Chain**             | EVM: Base Sepolia, ETH Sepolia, Linea Sepolia, Polygon Amoy / Solana: Devnet                                   |
+| **Chain**             | EVM: Ethereum Sepolia (more chains coming soon) / Solana: Devnet                                               |
 | **Trust models**      | reputation, crypto-economic, tee-attestation                                                                   |
 
 ## Supported Chains
 
 ### EVM Chains
 
-| Chain         | Identity Registry                            |
-| ------------- | -------------------------------------------- |
-| Base Sepolia  | `0x8004AA63c570c570eBF15376c0dB199918BFe9Fb` |
-| ETH Sepolia   | `0x8004a6090Cd10A7288092483047B097295Fb8847` |
-| Linea Sepolia | `0x8004aa7C931bCE1233973a0C6A667f73F66282e7` |
-| Polygon Amoy  | `0x8004ad19E14B9e0654f73353e8a0B600D46C2898` |
+| Chain         | Identity Registry                            | Status       |
+| ------------- | -------------------------------------------- | ------------ |
+| ETH Sepolia   | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | ✅ Available |
+| Base Sepolia  | Coming soon                                  | 🔜 Pending   |
+| Linea Sepolia | Coming soon                                  | 🔜 Pending   |
+| Polygon Amoy  | Coming soon                                  | 🔜 Pending   |
 
 ### Solana
 
@@ -201,33 +200,33 @@ The server will communicate over stdin/stdout following the MCP protocol.
 
 ```json
 {
-    "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-    "name": "My Agent",
-    "description": "An AI agent...",
-    "image": "https://example.com/image.png",
-    "endpoints": [
-        {
-            "name": "A2A",
-            "endpoint": "http://localhost:3000/.well-known/agent-card.json",
-            "version": "0.3.0"
-        },
-        {
-            "name": "MCP",
-            "endpoint": "http://localhost:3001",
-            "version": "2025-06-18"
-        },
-        {
-            "name": "agentWallet",
-            "endpoint": "eip155:11155111:0x..."
-        }
-    ],
-    "registrations": [
-        {
-            "agentId": 123,
-            "agentRegistry": "eip155:11155111:0x8004..."
-        }
-    ],
-    "supportedTrust": ["reputation", "crypto-economic", "tee-attestation"]
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "My Agent",
+  "description": "An AI agent...",
+  "image": "https://example.com/image.png",
+  "endpoints": [
+    {
+      "name": "A2A",
+      "endpoint": "http://localhost:3000/.well-known/agent-card.json",
+      "version": "0.3.0"
+    },
+    {
+      "name": "MCP",
+      "endpoint": "http://localhost:3001",
+      "version": "2025-06-18"
+    },
+    {
+      "name": "agentWallet",
+      "endpoint": "eip155:11155111:0x..."
+    }
+  ],
+  "registrations": [
+    {
+      "agentId": 123,
+      "agentRegistry": "eip155:11155111:0x8004..."
+    }
+  ],
+  "supportedTrust": ["reputation", "crypto-economic", "tee-attestation"]
 }
 ```
 

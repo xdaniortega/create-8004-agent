@@ -11,7 +11,7 @@ export function generatePackageJson(answers: WizardAnswers): string {
     };
 
     const dependencies: Record<string, string> = {
-        viem: "^2.21.0",
+        "agent0-sdk": "^1.0.2",
         dotenv: "^16.3.1",
         openai: "^4.68.0",
     };
@@ -21,8 +21,6 @@ export function generatePackageJson(answers: WizardAnswers): string {
         tsx: "^4.7.0",
         typescript: "^5.3.0",
     };
-
-    // No extra dependency needed for IPFS - using fetch with Pinata API
 
     if (hasFeature(answers, "a2a")) {
         scripts["start:a2a"] = "tsx src/a2a-server.ts";
@@ -58,23 +56,22 @@ export function generatePackageJson(answers: WizardAnswers): string {
     );
 }
 
-export function generateEnvExample(answers: WizardAnswers): string {
+export function generateEnvExample(answers: WizardAnswers, chain: ChainConfig): string {
     // If we generated a private key, use it directly
     const privateKeyValue = answers.generatedPrivateKey || "your_private_key_here";
 
     let env = `# Required for registration
 PRIVATE_KEY=${privateKeyValue}
 
+# RPC URL for ${chain.name}
+RPC_URL=${chain.rpcUrl}
+
+# Pinata for IPFS uploads (required for agent0-sdk)
+PINATA_JWT=your_pinata_jwt_here
+
 # OpenAI API key for LLM agent
 OPENAI_API_KEY=your_openai_api_key_here
 `;
-
-    if (answers.storageType === "ipfs") {
-        env += `
-# Pinata for IPFS uploads
-PINATA_JWT=your_pinata_jwt_here
-`;
-    }
 
     if (hasFeature(answers, "x402")) {
         env += `
@@ -87,274 +84,145 @@ X402_PRICE=$0.001
     return env;
 }
 
-export function generateRegistrationJson(answers: WizardAnswers, chain: ChainConfig): string {
-    const agentSlug = answers.agentName.toLowerCase().replace(/\s+/g, "-");
-    const endpoints: Array<{ name: string; endpoint: string; version?: string }> = [];
-
-    if (hasFeature(answers, "a2a")) {
-        endpoints.push({
-            name: "A2A",
-            endpoint: `https://${agentSlug}.example.com/.well-known/agent-card.json`,
-            version: "0.3.0",
-        });
-    }
-
-    if (hasFeature(answers, "mcp")) {
-        endpoints.push({
-            name: "MCP",
-            endpoint: `https://${agentSlug}.example.com/mcp`,
-            version: "2025-06-18",
-        });
-    }
-
-    endpoints.push({
-        name: "agentWallet",
-        endpoint: `eip155:${chain.chainId}:${answers.agentWallet}`,
-    });
-
-    const registration: Record<string, unknown> = {
-        type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-        name: answers.agentName,
-        description: answers.agentDescription,
-        image: answers.agentImage,
-        endpoints,
-        registrations: [],
-        supportedTrust: answers.trustModels,
-        active: true,
-        // OASF taxonomy - https://github.com/8004-org/oasf
-        skills: answers.skills || [],
-        domains: answers.domains || [],
-    };
-
-    // Add x402 support flag if x402 feature was selected
-    if (hasFeature(answers, "x402")) {
-        registration.x402support = true;
-    }
-
-    return JSON.stringify(registration, null, 2);
-}
-
 export function generateRegisterScript(answers: WizardAnswers, chain: ChainConfig): string {
-    const ipfsUpload = answers.storageType === "ipfs";
+    const agentSlug = answers.agentName.toLowerCase().replace(/\s+/g, "-");
+    const hasA2A = hasFeature(answers, "a2a");
+    const hasMCP = hasFeature(answers, "mcp");
+    const hasX402 = hasFeature(answers, "x402");
+
+    // Build trust model arguments
+    const trustArgs = [
+        answers.trustModels.includes("reputation"),
+        answers.trustModels.includes("crypto-economic"),
+        answers.trustModels.includes("tee-attestation"),
+    ];
 
     return `/**
  * ERC-8004 Agent Registration Script
  * 
- * This script registers your agent on the ERC-8004 Identity Registry.
- * It performs the following steps:
- * 
- * 1. Reads your registration.json metadata
- * 2. ${ipfsUpload ? "Uploads metadata to IPFS via Pinata" : "Encodes metadata as a base64 data URI"}
- * 3. Calls the Identity Registry contract to mint your agent NFT
- * 4. Returns your agentId for future reference
+ * Uses the Agent0 SDK (https://sdk.ag0.xyz/) for registration.
+ * The SDK handles:
+ * - Two-step registration flow (mint → upload → setAgentURI)
+ * - IPFS uploads via Pinata
+ * - Proper metadata format with registrations array
  * 
  * Requirements:
- * - PRIVATE_KEY in .env (wallet with testnet ETH for gas)${
-     ipfsUpload ? "\n * - PINATA_JWT in .env (for IPFS uploads)" : ""
- }
+ * - PRIVATE_KEY in .env (wallet with testnet ETH for gas)
+ * - PINATA_JWT in .env (for IPFS uploads)
+ * - RPC_URL in .env (optional, defaults to public endpoint)
  * 
  * Run with: npm run register
  */
 
 import 'dotenv/config';
-import fs from 'fs/promises';
-import { createWalletClient, createPublicClient, http, parseAbi, decodeEventLog } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { SDK } from 'agent0-sdk';
 
 // ============================================================================
-// Contract Configuration
+// Agent Configuration
 // ============================================================================
 
-/**
- * ERC-8004 Identity Registry ABI (minimal)
- * The register() function mints an agent NFT with your agentURI
- * Updated Jan 2026: tokenURI -> agentURI
- */
-const IDENTITY_REGISTRY_ABI = parseAbi([
-  'function register(string agentURI) external returns (uint256 agentId)',
-  'event Registered(uint256 indexed agentId, string agentURI, address indexed owner)',
-]);
-
-/**
- * Chain configuration for ${chain.name}
- * Change this if you want to deploy to a different network
- */
-const CHAIN_CONFIG = {
-  id: ${chain.chainId},
-  name: '${chain.name}',
-  nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: ['${chain.rpcUrl}'] } },
-  blockExplorers: { default: { name: 'Explorer', url: '${chain.explorer}' } },
+const AGENT_CONFIG = {
+  name: '${answers.agentName.replace(/'/g, "\\'")}',
+  description: '${answers.agentDescription.replace(/'/g, "\\'")}',
+  image: '${answers.agentImage}',
+  // Update these URLs when you deploy your agent
+  a2aEndpoint: 'https://${agentSlug}.example.com/.well-known/agent-card.json',
+  mcpEndpoint: 'https://${agentSlug}.example.com/mcp',
 };
 
-// Identity Registry contract address on ${chain.name}
-const IDENTITY_REGISTRY = '${chain.identityRegistry}';
-${
-    ipfsUpload
-        ? `
-// ============================================================================
-// IPFS Upload
-// ============================================================================
-
-/**
- * Upload registration data to IPFS via Pinata Pinning API
- * Returns the IPFS CID of the uploaded file (publicly accessible)
- */
-async function uploadToIPFS(data: string, jwt: string): Promise<string> {
-  const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
-    method: 'POST',
-    headers: {
-      Authorization: \`Bearer \${jwt}\`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      pinataContent: JSON.parse(data),
-      pinataMetadata: { name: 'registration.json' },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(\`Pinata upload failed: \${response.statusText} - \${error}\`);
-  }
-
-  const result = await response.json() as { IpfsHash: string };
-  return result.IpfsHash;
-}
-`
-        : ""
-}
 // ============================================================================
 // Main Registration Flow
 // ============================================================================
 
 async function main() {
-  // Step 1: Load environment variables
+  // Validate environment
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey) {
     throw new Error('PRIVATE_KEY not set in .env');
   }
 
-  ${
-      ipfsUpload
-          ? `const pinataJwt = process.env.PINATA_JWT;
+  const pinataJwt = process.env.PINATA_JWT;
   if (!pinataJwt) {
     throw new Error('PINATA_JWT not set in .env');
-  }`
-          : ""
   }
 
-  // Step 2: Read registration.json (your agent's metadata)
-  const registrationData = await fs.readFile('registration.json', 'utf-8');
-  const registration = JSON.parse(registrationData);
+  const rpcUrl = process.env.RPC_URL || '${chain.rpcUrl}';
 
-  // Step 3: Prepare tokenURI (either IPFS or base64)
-  let tokenURI: string;
-
-  ${
-      ipfsUpload
-          ? `// Upload to IPFS via Pinata
-  // The tokenURI will be: ipfs://Qm...
-  console.log('📤 Uploading to IPFS...');
-  const ipfsHash = await uploadToIPFS(registrationData, pinataJwt);
-  tokenURI = \`ipfs://\${ipfsHash}\`;
-  console.log('✅ Uploaded to IPFS:', tokenURI);`
-          : `// Encode as base64 data URI
-  // The tokenURI will be: data:application/json;base64,...
-  // This stores metadata directly on-chain (no external dependencies)
-  console.log('📦 Encoding as base64...');
-  const base64Data = Buffer.from(registrationData).toString('base64');
-  tokenURI = \`data:application/json;base64,\${base64Data}\`;
-  console.log('✅ Encoded as base64 data URI');`
-  }
-
-  // Step 4: Setup wallet client (for sending transactions)
-  const formattedKey = privateKey.startsWith('0x') ? privateKey : \`0x\${privateKey}\`;
-  const account = privateKeyToAccount(formattedKey as \`0x\${string}\`);
-  console.log('🔑 Registering from:', account.address);
-
-  const walletClient = createWalletClient({
-    account,
-    chain: CHAIN_CONFIG,
-    transport: http(),
+  // Initialize SDK
+  console.log('🔧 Initializing Agent0 SDK...');
+  const sdk = new SDK({
+    chainId: ${chain.chainId},
+    rpcUrl,
+    signer: privateKey,
+    ipfs: 'pinata',
+    pinataJwt,
   });
 
-  // Public client for reading blockchain state
-  const publicClient = createPublicClient({
-    chain: CHAIN_CONFIG,
-    transport: http(),
-  });
-
-  // Step 5: Call the register() function on the Identity Registry
-  console.log('📝 Registering agent on ${chain.name}...');
-  const hash = await walletClient.writeContract({
-    address: IDENTITY_REGISTRY,
-    abi: IDENTITY_REGISTRY_ABI,
-    functionName: 'register',
-    args: [tokenURI],
-  });
-
-  // Step 6: Wait for transaction confirmation
-  console.log('⏳ Waiting for confirmation...');
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-  // Parse the Registered event to get agentId
-  // The Registered event signature hash
-  const REGISTERED_EVENT_SIG = '0xca52e62c367d81bb2e328eb795f7c7ba24afb478408a26c0e201d155c449bc4a';
-  
-  const registeredLog = receipt.logs.find(
-    (log) => 
-      log.address.toLowerCase() === IDENTITY_REGISTRY.toLowerCase() &&
-      log.topics[0] === REGISTERED_EVENT_SIG
+  // Create agent
+  console.log('📝 Creating agent...');
+  const agent = sdk.createAgent(
+    AGENT_CONFIG.name,
+    AGENT_CONFIG.description,
+    AGENT_CONFIG.image
   );
 
-  let agentId: string | null = null;
-  if (registeredLog) {
-    try {
-      const decoded = decodeEventLog({
-        abi: IDENTITY_REGISTRY_ABI,
-        data: registeredLog.data,
-        topics: registeredLog.topics,
-      });
-      if (decoded.eventName === 'Registered' && decoded.args) {
-        agentId = (decoded.args as { agentId: bigint }).agentId.toString();
-      }
-    } catch (e) {
-      console.warn('⚠️  Could not decode event log, agentId not extracted');
-    }
-  }
-
-  // Step 7: Output results
-  console.log('\\n✅ Agent registered successfully!');
-  console.log('📋 Transaction:', \`${chain.explorer}/tx/\${hash}\`);
-  console.log('🔗 Registry:', IDENTITY_REGISTRY);
-  console.log('📄 Token URI:', tokenURI);
-  if (agentId) {
-    console.log('🆔 Agent ID:', agentId);${
-        chain.scanPath
-            ? `
-    console.log('');
-    console.log('🌐 View your agent on 8004scan:');
-    console.log(\`   https://www.8004scan.io/${chain.scanPath}/agent/\${agentId}\`);`
+  // Configure endpoints
+${
+    hasA2A
+        ? `  console.log('🔗 Setting A2A endpoint...');
+  await agent.setA2A(AGENT_CONFIG.a2aEndpoint);
+`
+        : ""
+}${
+        hasMCP
+            ? `  console.log('🔗 Setting MCP endpoint...');
+  await agent.setMCP(AGENT_CONFIG.mcpEndpoint);
+`
             : ""
     }
-  }
+  // Configure trust models
+  console.log('🔐 Setting trust models...');
+  agent.setTrust(${trustArgs[0]}, ${trustArgs[1]}, ${trustArgs[2]});
 
-  // Update registration.json with the registry reference
-  registration.registrations = [{
-    agentId: agentId ? parseInt(agentId, 10) : 'UNKNOWN',
-    agentRegistry: \`eip155:${chain.chainId}:\${IDENTITY_REGISTRY}\`,
-  }];
-  await fs.writeFile('registration.json', JSON.stringify(registration, null, 2));
-  
-  if (agentId) {
-    console.log('\\n✅ registration.json updated with agentId:', agentId);
-  } else {
-    console.log('\\n⚠️  Could not extract agentId - check transaction logs manually');
+  // Set status flags
+  agent.setActive(true);
+  agent.setX402Support(${hasX402});
+
+  // Register on-chain with IPFS
+  console.log('⛓️  Registering agent on ${chain.name}...');
+  console.log('   This will:');
+  console.log('   1. Mint agent NFT on-chain');
+  console.log('   2. Upload metadata to IPFS');
+  console.log('   3. Set agent URI on-chain');
+  console.log('');
+
+  const result = await agent.registerIPFS();
+
+  // Output results
+  console.log('');
+  console.log('✅ Agent registered successfully!');
+  console.log('');
+  console.log('🆔 Agent ID:', result.agentId);
+  console.log('📄 Agent URI:', result.agentURI);${
+      chain.scanPath
+          ? `
+  console.log('');
+   console.log('🌐 View your agent on 8004scan:');
+   const agentIdNum = result.agentId?.split(':')[1] || result.agentId;
+   console.log(\`   https://www.8004scan.io/agents/${chain.scanPath}/\${agentIdNum}\`);`
+          : ""
   }
+  console.log('');
+  console.log('📋 Next steps:');
+  console.log('   1. Update AGENT_CONFIG endpoints with your production URLs');
+  console.log('   2. Run \`npm run start:a2a\` to start your A2A server');
+  console.log('   3. Deploy your agent to a public URL');
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error('❌ Registration failed:', error.message || error);
+  process.exit(1);
+});
 `;
 }
 
@@ -479,4 +347,133 @@ export async function generateResponse(userMessage: string, history: AgentMessag
   return chat(messages);
 }
 ${streamingCode}`;
+}
+
+export function generateReadme(answers: WizardAnswers, chain: ChainConfig): string {
+    const hasA2A = hasFeature(answers, "a2a");
+    const hasMCP = hasFeature(answers, "mcp");
+    const hasX402 = hasFeature(answers, "x402");
+
+    return `# ${answers.agentName}
+
+${answers.agentDescription}
+
+## Quick Start
+
+### 1. Install dependencies
+
+\`\`\`bash
+npm install
+\`\`\`
+
+### 2. Configure environment
+
+Edit \`.env\` and add your API keys:
+
+\`\`\`env
+# Already set if wallet was auto-generated
+PRIVATE_KEY=your_private_key
+
+# Get from https://pinata.cloud (free tier works)
+PINATA_JWT=your_pinata_jwt
+
+# Get from https://platform.openai.com
+OPENAI_API_KEY=your_openai_key
+\`\`\`
+
+### 3. Fund your wallet
+
+Your agent wallet: \`${answers.agentWallet}\`
+
+Get testnet ETH from: https://cloud.google.com/application/web3/faucet/ethereum/sepolia
+
+### 4. Register on-chain
+
+\`\`\`bash
+npm run register
+\`\`\`
+
+This will:
+- Upload your agent metadata to IPFS
+- Register your agent on ${chain.name}
+- Output your agent ID and 8004scan link
+${
+    hasA2A
+        ? `
+### 5. Start the A2A server
+
+\`\`\`bash
+npm run start:a2a
+\`\`\`
+
+Test locally: http://localhost:3000/.well-known/agent-card.json
+`
+        : ""
+}${
+        hasMCP
+            ? `
+### ${hasA2A ? "6" : "5"}. Start the MCP server
+
+\`\`\`bash
+npm run start:mcp
+\`\`\`
+`
+            : ""
+    }
+## Project Structure
+
+\`\`\`
+${answers.agentName.toLowerCase().replace(/\s+/g, "-")}/
+├── src/
+│   ├── register.ts      # Registration script
+│   ├── agent.ts         # LLM logic${hasA2A ? "\n│   └── a2a-server.ts   # A2A server" : ""}${
+        hasMCP ? "\n│   └── mcp-server.ts   # MCP server" : ""
+    }
+├── .env                 # Environment variables (keep secret!)
+└── package.json
+\`\`\`
+${
+    hasX402
+        ? `
+## x402 Payments
+
+This agent has x402 payment support enabled. Protected endpoints require USDC payment.
+
+Payment configuration in \`.env\`:
+- \`X402_PAYEE_ADDRESS\` - Wallet to receive payments
+- \`X402_PRICE\` - Price per request (e.g., $0.001)
+`
+        : ""
+}
+## OASF Skills & Domains (Optional)
+
+Add capabilities and domain expertise to help others discover your agent.
+
+Edit \`src/register.ts\` and add before \`registerIPFS()\`:
+
+\`\`\`typescript
+// Add skills (what your agent can do)
+agent.addSkill('natural_language_processing/summarization', true);
+agent.addSkill('analytical_skills/coding_skills/text_to_code', true);
+
+// Add domains (areas of expertise)
+agent.addDomain('technology/software_engineering', true);
+\`\`\`
+
+Browse the full taxonomy: https://github.com/8004-org/oasf
+
+## Next Steps
+
+1. Update the endpoint URLs in \`src/register.ts\` with your production domain
+2. Customize the agent logic in \`src/agent.ts\`
+3. Deploy to a cloud provider (Vercel, Railway, etc.)
+4. Re-run \`npm run register\` if you change metadata
+
+## Resources
+
+- [ERC-8004 Standard](https://eips.ethereum.org/EIPS/eip-8004)
+- [8004scan Explorer](https://www.8004scan.io/)
+- [Agent0 SDK Docs](https://sdk.ag0.xyz/)
+- [OASF Taxonomy](https://github.com/8004-org/oasf)
+`;
 }

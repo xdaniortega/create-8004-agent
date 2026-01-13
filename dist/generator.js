@@ -4,9 +4,9 @@ import { CHAINS } from "./config.js";
 import { SOLANA_CHAINS, isSolanaChain } from "./config-solana.js";
 import { hasFeature } from "./wizard.js";
 // EVM templates
-import { generatePackageJson, generateEnvExample, generateRegistrationJson, generateRegisterScript, generateAgentTs, } from "./templates/base.js";
+import { generatePackageJson, generateEnvExample, generateRegisterScript, generateAgentTs, generateReadme, } from "./templates/base.js";
 // Solana templates
-import { generateSolanaPackageJson, generateSolanaEnv, generateSolanaRegistrationJson, generateSolanaRegisterScript, generateAgentTs as generateSolanaAgentTs, } from "./templates/solana.js";
+import { generateSolanaPackageJson, generateSolanaEnv, generateSolanaRegistrationJson, generateSolanaRegisterScript, generateAgentTs as generateSolanaAgentTs, generateSolanaReadme, } from "./templates/solana.js";
 // Shared templates (work for both EVM and Solana)
 import { generateA2AServer, generateAgentCard } from "./templates/a2a.js";
 import { generateMCPServer, generateMCPTools } from "./templates/mcp.js";
@@ -41,12 +41,12 @@ export async function generateProject(answers) {
 async function generateEVMProject(projectPath, answers) {
     const chain = CHAINS[answers.chain];
     await writeFile(projectPath, "package.json", generatePackageJson(answers));
-    await writeFile(projectPath, ".env", generateEnvExample(answers));
-    await writeFile(projectPath, "registration.json", generateRegistrationJson(answers, chain));
+    await writeFile(projectPath, ".env", generateEnvExample(answers, chain));
     await writeFile(projectPath, "src/register.ts", generateRegisterScript(answers, chain));
     await writeFile(projectPath, "src/agent.ts", generateAgentTs(answers));
     await writeFile(projectPath, "tsconfig.json", generateTsConfig());
     await writeFile(projectPath, ".gitignore", generateGitignore());
+    await writeFile(projectPath, "README.md", generateReadme(answers, chain));
 }
 /**
  * Generate Solana-specific project files
@@ -60,6 +60,7 @@ async function generateSolanaProject(projectPath, answers) {
     await writeFile(projectPath, "src/agent.ts", generateSolanaAgentTs(answers));
     await writeFile(projectPath, "tsconfig.json", generateTsConfig());
     await writeFile(projectPath, ".gitignore", generateGitignore());
+    await writeFile(projectPath, "README.md", generateSolanaReadme(answers, chain));
 }
 async function writeFile(projectPath, filePath, content) {
     const fullPath = path.join(projectPath, filePath);
