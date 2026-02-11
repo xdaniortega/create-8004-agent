@@ -167,8 +167,17 @@ export async function runWizard(): Promise<WizardAnswers> {
     ]);
 
     // Normalize project directory so agents live under ./agents by default
-    let projectDir = answers.projectDir;
-    if (projectDir !== "." && !path.isAbsolute(projectDir) && !projectDir.startsWith("agents/")) {
+    // (skip prefix if we're already inside an "agents" folder to avoid agents/agents/...)
+    let projectDir = answers.projectDir.trim();
+    const cwdBasename = path.basename(process.cwd());
+    const alreadyInAgents = cwdBasename === "agents";
+    const alreadyUnderAgents = projectDir.replace(/^\.\//, "").startsWith("agents/");
+    if (
+        projectDir !== "." &&
+        !path.isAbsolute(projectDir) &&
+        !alreadyUnderAgents &&
+        !alreadyInAgents
+    ) {
         projectDir = `agents/${projectDir}`;
     }
 

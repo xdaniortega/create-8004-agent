@@ -32,7 +32,7 @@ export async function runWizard() {
             type: "input",
             name: "projectDir",
             message: "Project directory (or . for current):",
-            default: "my-agent",
+            default: "agents/my-agent",
         },
         {
             type: "input",
@@ -129,8 +129,19 @@ export async function runWizard() {
             choices: TRUST_MODELS.map((model) => ({ name: model, value: model, checked: model === "reputation" })),
         },
     ]);
+    // Normalize project directory so agents live under ./agents by default
+    // (skip prefix if we're already inside an "agents" folder to avoid agents/agents/...)
+    let projectDir = answers.projectDir.trim();
+    const cwdBasename = path.basename(process.cwd());
+    const alreadyInAgents = cwdBasename === "agents";
+    const alreadyUnderAgents = projectDir.replace(/^\.\//, "").startsWith("agents/");
+    if (projectDir !== "." &&
+        !path.isAbsolute(projectDir) &&
+        !alreadyUnderAgents &&
+        !alreadyInAgents) {
+        projectDir = `agents/${projectDir}`;
+    }
     // Check if directory exists and get available name
-    let projectDir = answers.projectDir;
     const availableDir = getAvailableDir(projectDir);
     if (availableDir !== projectDir) {
         console.log(`\n📁 Directory "${projectDir}" exists, using "${availableDir}" instead`);
