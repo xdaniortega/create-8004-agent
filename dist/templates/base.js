@@ -31,7 +31,7 @@ export function generatePackageJson(answers) {
         register: "tsx src/register.ts",
     };
     const dependencies = {
-        "agent0-sdk": "latest",
+        "@blockbyvlog/agent0-sdk": "latest",
         dotenv: "^16.3.1",
         openai: "^4.68.0",
     };
@@ -78,7 +78,7 @@ PRIVATE_KEY=${privateKeyValue}
 # RPC URL for ${chain.name}
 RPC_URL=${chain.rpcUrl}
 
-# Pinata for IPFS uploads (required for agent0-sdk)
+# Pinata for IPFS uploads (required for @blockbyvlog/agent0-sdk)
 PINATA_JWT=your_pinata_jwt_here
 
 # OpenAI API key for LLM agent
@@ -107,7 +107,7 @@ export function generateRegisterScript(answers, chain) {
     return `/**
  * ERC-8004 Agent Registration Script
  * 
- * Uses the Agent0 SDK (https://sdk.ag0.xyz/) for registration.
+ * Uses the Agent0 SDK (@blockbyvlog/agent0-sdk) for registration.
  * The SDK handles:
  * - Two-step registration flow (mint → upload → setAgentURI)
  * - IPFS uploads via Pinata
@@ -122,7 +122,7 @@ export function generateRegisterScript(answers, chain) {
  */
 
 import 'dotenv/config';
-import { SDK } from 'agent0-sdk';
+import { SDK } from '@blockbyvlog/agent0-sdk';
 
 // ============================================================================
 // Agent Configuration
@@ -148,21 +148,21 @@ async function main() {
     throw new Error('PRIVATE_KEY not set in .env');
   }
 
-  const pinataJwt = process.env.PINATA_JWT;
+  const pinataJwt = process.env.PINATA_JWT?.trim();
   if (!pinataJwt) {
     throw new Error('PINATA_JWT not set in .env');
   }
 
-  const rpcUrl = process.env.RPC_URL || '${chain.rpcUrl}';
+  const rpcUrl = (process.env.RPC_URL || '${chain.rpcUrl}').trim();
 
   // Initialize SDK
   console.log('🔧 Initializing Agent0 SDK...');
   const sdk = new SDK({
     chainId: ${chain.chainId},
     rpcUrl,
-    signer: privateKey,
+    privateKey,
     ipfs: 'pinata',
-    pinataJwt,
+    pinataJwt: pinataJwt,
   });
 
   // Create agent

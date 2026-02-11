@@ -82,6 +82,8 @@ agents/my-agent/
 
 ## Supported Chains
 
+EVM chains (Ethereum, Base, Polygon, **Arbitrum**) use the same registration flow via [@blockbyvlog/agent0-sdk](https://www.npmjs.com/package/@blockbyvlog/agent0-sdk). Monad uses direct contract calls (SDK does not support it yet).
+
 ### EVM Chains
 
 | Chain           | Identity Registry                            | Reputation Registry                            | Status       |
