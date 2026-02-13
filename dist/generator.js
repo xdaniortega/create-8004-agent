@@ -9,8 +9,6 @@ import { generatePackageJson, generateEnvExample, generateRegisterScript, genera
 import { generateSolanaPackageJson, generateSolanaEnv, generateSolanaRegistrationJson, generateSolanaRegisterScript, generateAgentTs as generateSolanaAgentTs, generateSolanaReadme, } from "./templates/solana.js";
 // Monad templates (SDK doesn't support Monad yet)
 import { isMonadChain, generateMonadPackageJson, generateMonadEnv, generateMonadRegisterScript, generateMonadReadme, } from "./templates/monad.js";
-// Arbitrum templates (direct registry calls, like Monad)
-import { isArbitrumChain, generateArbitrumPackageJson, generateArbitrumEnv, generateArbitrumRegisterScript, generateArbitrumReadme, } from "./templates/arbitrum.js";
 // Shared templates (work for both EVM and Solana)
 import { generateA2AServer, generateAgentCard, generateA2AClient } from "./templates/a2a.js";
 import { generateMCPServer, generateMCPTools } from "./templates/mcp.js";
@@ -28,9 +26,6 @@ export async function generateProject(answers) {
     }
     else if (isMonadChain(answers.chain)) {
         await generateMonadProject(projectPath, answers);
-    }
-    else if (isArbitrumChain(answers.chain)) {
-        await generateArbitrumProject(projectPath, answers);
     }
     else {
         await generateEVMProject(projectPath, answers);
@@ -87,20 +82,6 @@ async function generateMonadProject(projectPath, answers) {
     await writeFile(projectPath, "tsconfig.json", generateTsConfig());
     await writeFile(projectPath, ".gitignore", generateGitignore());
     await writeFile(projectPath, "README.md", generateMonadReadme(answers, chain));
-}
-/**
- * Generate Arbitrum-specific project files
- * Direct contract calls using custom Arbitrum registries
- */
-async function generateArbitrumProject(projectPath, answers) {
-    const chain = CHAINS[answers.chain];
-    await writeFile(projectPath, "package.json", generateArbitrumPackageJson(answers));
-    await writeFile(projectPath, ".env", generateArbitrumEnv(answers, chain));
-    await writeFile(projectPath, "src/register.ts", generateArbitrumRegisterScript(answers, chain));
-    await writeFile(projectPath, "src/agent.ts", generateAgentTs(answers)); // Reuse EVM agent.ts
-    await writeFile(projectPath, "tsconfig.json", generateTsConfig());
-    await writeFile(projectPath, ".gitignore", generateGitignore());
-    await writeFile(projectPath, "README.md", generateArbitrumReadme(answers, chain));
 }
 async function writeFile(projectPath, filePath, content) {
     const fullPath = path.join(projectPath, filePath);

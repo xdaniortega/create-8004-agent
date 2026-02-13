@@ -78,7 +78,7 @@ PRIVATE_KEY=${privateKeyValue}
 # RPC URL for ${chain.name}
 RPC_URL=${chain.rpcUrl}
 
-# Pinata for IPFS uploads (required for @blockbyvlog/agent0-sdk)
+# Pinata for IPFS uploads (required for agent0-sdk)
 PINATA_JWT=your_pinata_jwt_here
 
 # OpenAI API key for LLM agent
@@ -107,15 +107,12 @@ export function generateRegisterScript(answers, chain) {
     return `/**
  * ERC-8004 Agent Registration Script
  * 
- * Uses the Agent0 SDK (@blockbyvlog/agent0-sdk) for registration.
- * The SDK handles:
- * - Two-step registration flow (mint → upload → setAgentURI)
- * - IPFS uploads via Pinata
- * - Proper metadata format with registrations array
+ * Uses the Agent0 SDK for on-chain registration. IPFS upload uses Pinata v3 API
+ * (https://uploads.pinata.cloud/v3/files) so your Pinata JWT (scoped key) works.
  * 
  * Requirements:
  * - PRIVATE_KEY in .env (wallet with ETH for gas)
- * - PINATA_JWT in .env (for IPFS uploads)
+ * - PINATA_JWT in .env (for IPFS uploads, v3-compatible JWT)
  * - RPC_URL in .env (optional, defaults to public endpoint)
  * 
  * Run with: npm run register
@@ -136,6 +133,36 @@ const AGENT_CONFIG = {
   a2aEndpoint: 'https://${agentSlug}.example.com/.well-known/agent-card.json',
   mcpEndpoint: 'https://${agentSlug}.example.com/mcp',
 };
+
+// ============================================================================
+// IPFS upload via Pinata v3 (compatible with current Pinata JWT / scoped keys)
+// ============================================================================
+
+async function uploadToIPFS(metadata: object, pinataJwt: string): Promise<string> {
+  const form = new FormData();
+  const blob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+  form.append('file', blob, 'agent-registration.json');
+  form.append('network', 'public');
+
+  const response = await fetch('https://uploads.pinata.cloud/v3/files', {
+    method: 'POST',
+    headers: { Authorization: \`Bearer \${pinataJwt}\` },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(\`Pinata upload failed: \${text}\`);
+  }
+
+  const json = (await response.json()) as { data?: { cid?: string } };
+  const cid = json?.data?.cid;
+  if (!cid) throw new Error('Pinata response missing cid');
+
+  const ipfsUri = \`ipfs://\${cid}\`;
+  console.log('   IPFS URI:', ipfsUri);
+  return ipfsUri;
+}
 
 // ============================================================================
 // Main Registration Flow
@@ -214,7 +241,7 @@ ${hasA2A
   console.log('');
   console.log('🔐 Setting agent wallet via setAgentWallet()...');
   const walletTx = await agent.setWallet('${answers.agentWallet}');
-  await walletTx.waitMined();
+  if (walletTx) await walletTx.waitMined();
 
   // Output results
   console.log('');
