@@ -134,12 +134,11 @@ export function generateRegisterScript(answers: WizardAnswers, chain: ChainConfi
     return `/**
  * ERC-8004 Agent Registration Script
  * 
- * Uses the Agent0 SDK for on-chain registration. IPFS upload uses Pinata v3 API
- * (https://uploads.pinata.cloud/v3/files) so your Pinata JWT (scoped key) works.
+ * Uses the Agent0 SDK for registration (mint, IPFS upload via Pinata, set URI).
  * 
  * Requirements:
  * - PRIVATE_KEY in .env (wallet with ETH for gas)
- * - PINATA_JWT in .env (for IPFS uploads, v3-compatible JWT)
+ * - PINATA_JWT in .env (for IPFS uploads)
  * - RPC_URL in .env (optional, defaults to public endpoint)
  * 
  * Run with: npm run register
@@ -160,36 +159,6 @@ const AGENT_CONFIG = {
   a2aEndpoint: 'https://${agentSlug}.example.com/.well-known/agent-card.json',
   mcpEndpoint: 'https://${agentSlug}.example.com/mcp',
 };
-
-// ============================================================================
-// IPFS upload via Pinata v3 (compatible with current Pinata JWT / scoped keys)
-// ============================================================================
-
-async function uploadToIPFS(metadata: object, pinataJwt: string): Promise<string> {
-  const form = new FormData();
-  const blob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
-  form.append('file', blob, 'agent-registration.json');
-  form.append('network', 'public');
-
-  const response = await fetch('https://uploads.pinata.cloud/v3/files', {
-    method: 'POST',
-    headers: { Authorization: \`Bearer \${pinataJwt}\` },
-    body: form,
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(\`Pinata upload failed: \${text}\`);
-  }
-
-  const json = (await response.json()) as { data?: { cid?: string } };
-  const cid = json?.data?.cid;
-  if (!cid) throw new Error('Pinata response missing cid');
-
-  const ipfsUri = \`ipfs://\${cid}\`;
-  console.log('   IPFS URI:', ipfsUri);
-  return ipfsUri;
-}
 
 // ============================================================================
 // Main Registration Flow
