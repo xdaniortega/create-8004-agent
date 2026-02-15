@@ -135,6 +135,10 @@ npm run register
 
 **EVM chains:** Uploads metadata to IPFS and mints an NFT on the Identity Registry.
 
+**Root .env (optional):** You can put a single `.env` in the **project root** (see `env.example`) with `PRIVATE_KEY` and `PINATA_JWT`. When you run `npm run register` from an agent folder (e.g. `agents/my-agent`), the script loads root `../../.env`, then `../.env.shared`, then the agent’s `.env`. So one master wallet and JWT can be used for all agents.
+
+**Funding the agent wallet:** After registration, an interactive menu asks whether to transfer ETH from the master account to the agent wallet. It shows your available balance and recommends transferring at least **0.002 ETH**. You can choose: use master .env and transfer 0.002 ETH, enter a custom amount, or skip.
+
 **Solana:** Validates metadata using `buildRegistrationFileJson()`, uploads to IPFS, and mints a Metaplex Core NFT via the 8004 program.
 
 After registration, view your agent on [8004scan.io](https://www.8004scan.io/).
@@ -272,6 +276,12 @@ The server will communicate over stdin/stdout following the MCP protocol.
   "supportedTrust": ["reputation", "crypto-economic", "tee-attestation"]
 }
 ```
+
+## Examples
+
+- **Feedback (publicar agente, dar opinión, consultar opiniones)**  
+  En `examples/` hay un script que: (1) publica un agente en chain, (2) envía feedback (opinión) sobre ese agente, (3) lista las opiniones y el resumen de reputación.  
+  Ver [examples/README.md](examples/README.md). Ejecutar: `npm run example:feedback` (requiere `PRIVATE_KEY` y `PINATA_JWT` en `.env` o `agents/.env.shared`).
 
 ## Development
 

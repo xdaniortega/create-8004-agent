@@ -41,18 +41,6 @@ export declare const CHAINS: {
         readonly usdcName: "USD Coin";
         readonly usdcVersion: "2";
     };
-    readonly "monad-mainnet": {
-        readonly name: "Monad Mainnet";
-        readonly chainId: 143;
-        readonly rpcUrl: "https://rpc.monad.xyz";
-        readonly scanPath: "monad";
-        readonly x402Network: "eip155:143";
-        readonly x402Supported: false;
-        readonly facilitatorUrl: null;
-        readonly usdcAddress: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603";
-        readonly usdcName: "USD Coin";
-        readonly usdcVersion: "2";
-    };
     readonly "eth-sepolia": {
         readonly name: "Ethereum Sepolia (Testnet)";
         readonly chainId: 11155111;
@@ -95,19 +83,15 @@ export declare const CHAINS: {
         readonly usdcName: "USDC";
         readonly usdcVersion: "2";
     };
-    readonly "monad-testnet": {
-        readonly name: "Monad Testnet";
-        readonly chainId: 10143;
-        readonly rpcUrl: "https://testnet-rpc.monad.xyz";
-        readonly scanPath: "monad-testnet";
-        readonly x402Network: "eip155:10143";
-        readonly x402Supported: false;
-        readonly facilitatorUrl: null;
-        readonly usdcAddress: "0x534b2f3A21130d7a60830c2Df862319e593943A3";
-        readonly usdcName: "USD Coin";
-        readonly usdcVersion: "2";
-    };
 };
 export type ChainKey = keyof typeof CHAINS;
 export declare const TRUST_MODELS: readonly ["reputation", "crypto-economic", "tee-attestation"];
 export type TrustModel = (typeof TRUST_MODELS)[number];
+export declare function getChainKeys(): ChainKey[];
+export declare function getChainChoices(): {
+    name: string;
+    value: ChainKey;
+}[];
+export declare const AGENT_ID_REGEX: RegExp;
+export declare const AGENT_ID_MESSAGE = "Agent ID (format chainId:tokenId, e.g. 421614:5)";
+export declare function validateAgentId(v: string): true | string;

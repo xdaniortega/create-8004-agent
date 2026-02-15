@@ -1,6 +1,6 @@
 import type { WizardAnswers } from "../wizard.js";
 import { hasFeature } from "../wizard.js";
-import type { CHAINS } from "../config.js";
+import { CHAINS } from "../config.js";
 
 type ChainConfig = (typeof CHAINS)[keyof typeof CHAINS];
 
@@ -11,7 +11,6 @@ function getFundingInstructions(chain: ChainConfig): string {
         1: "ETH", // Ethereum
         8453: "ETH", // Base
         137: "MATIC", // Polygon
-        143: "MON", // Monad
     };
 
     if (mainnetChains[chain.chainId]) {
@@ -24,7 +23,6 @@ function getFundingInstructions(chain: ChainConfig): string {
         11155111: "https://cloud.google.com/application/web3/faucet/ethereum/sepolia", // Eth Sepolia
         84532: "https://www.coinbase.com/faucets/base-ethereum-goerli-faucet", // Base Sepolia
         80002: "https://faucet.polygon.technology/", // Polygon Amoy
-        10143: "https://faucet.monad.xyz/", // Monad Testnet
     };
 
     const faucetUrl = faucets[chain.chainId];
@@ -44,7 +42,9 @@ export function generatePackageJson(answers: WizardAnswers): string {
     const dependencies: Record<string, string> = {
         "@blockbyvlog/agent0-sdk": "latest",
         dotenv: "^16.3.1",
+        inquirer: "^9.2.23",
         openai: "^4.68.0",
+        viem: "^2.21.0",
     };
 
     const devDependencies: Record<string, string> = {
@@ -91,17 +91,26 @@ export function generatePackageJson(answers: WizardAnswers): string {
 }
 
 export function generateEnvExample(answers: WizardAnswers, chain: ChainConfig): string {
-    // If we generated a private key, use it directly
-    const privateKeyValue = answers.generatedPrivateKey || "your_private_key_here";
+    const useMasterJwt = answers.useMasterPinataJwt === true;
+    const preFund = answers.preFundFromMaster === true;
+    const preFundAmount = answers.preFundAmount?.trim() || "0.002";
+    // When using master: PRIVATE_KEY comes from root .env at register time; we still need AGENT_PRIVATE_KEY for setWallet (agent wallet signs EIP-712)
+    const privateKeyValue = answers.generatedPrivateKey ?? "your_private_key_here";
+    const pinataLine = useMasterJwt
+        ? "# PINATA_JWT loaded from ../../.env (master) when you run register"
+        : "PINATA_JWT=your_pinata_jwt_here";
 
-    let env = `# Required for registration
+    let env = `# Registration: use ../../.env (master) for PRIVATE_KEY and PINATA_JWT, or set them here
 PRIVATE_KEY=${privateKeyValue}
+
+# Agent wallet key (required for setWallet when master pays for registration). Same as PRIVATE_KEY if you only have one key.
+AGENT_PRIVATE_KEY=${answers.generatedPrivateKey ?? "same_as_PRIVATE_KEY_or_your_agent_wallet_key"}
 
 # RPC URL for ${chain.name}
 RPC_URL=${chain.rpcUrl}
 
-# Pinata for IPFS uploads (required for agent0-sdk)
-PINATA_JWT=your_pinata_jwt_here
+# Pinata for IPFS
+${pinataLine}
 
 # OpenAI API key for LLM agent
 OPENAI_API_KEY=your_openai_api_key_here
@@ -112,6 +121,12 @@ OPENAI_API_KEY=your_openai_api_key_here
 # x402 Payment Configuration (optional overrides)
 X402_PAYEE_ADDRESS=${answers.agentWallet}
 X402_PRICE=$0.001
+`;
+    }
+    if (preFund) {
+        env += `
+# Pre-fund: transfer this much ETH from master to agent wallet when you run register
+FUND_AGENT_ETH=${preFundAmount}
 `;
     }
 
@@ -133,19 +148,25 @@ export function generateRegisterScript(answers: WizardAnswers, chain: ChainConfi
 
     return `/**
  * ERC-8004 Agent Registration Script
- * 
- * Uses the Agent0 SDK for registration (mint, IPFS upload via Pinata, set URI).
- * 
- * Requirements:
- * - PRIVATE_KEY in .env (wallet with ETH for gas)
- * - PINATA_JWT in .env (for IPFS uploads)
- * - RPC_URL in .env (optional, defaults to public endpoint)
- * 
+ *
+ * Loads env from: ../../.env (project root master), ../.env.shared, then .env (this agent).
+ * You can use a single root .env with PRIVATE_KEY and PINATA_JWT for all agents.
+ *
+ * After registration you can fund the agent wallet from the master account (interactive menu).
+ *
  * Run with: npm run register
  */
 
-import 'dotenv/config';
+import path from 'path';
+import { config } from 'dotenv';
+config({ path: path.join(process.cwd(), '..', '..', '.env') });
+config({ path: path.join(process.cwd(), '..', '.env.shared') });
+config();
+import inquirer from 'inquirer';
 import { SDK } from '@blockbyvlog/agent0-sdk';
+import { createWalletClient, createPublicClient, http, parseEther } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { defineChain } from 'viem';
 
 // ============================================================================
 // Agent Configuration
@@ -240,8 +261,65 @@ ${
   // This uses EIP-712 signature verification for security
   console.log('');
   console.log('🔐 Setting agent wallet via setAgentWallet()...');
-  const walletTx = await agent.setWallet('${answers.agentWallet}');
+  const agentWallet = '${answers.agentWallet}' as \`0x\${string}\`;
+  const account = privateKeyToAccount(privateKey as \`0x\${string}\`);
+  const agentPrivateKey = process.env.AGENT_PRIVATE_KEY?.trim();
+  const setWalletOpts = (agentWallet.toLowerCase() !== account.address.toLowerCase() && agentPrivateKey)
+    ? { newWalletPrivateKey: agentPrivateKey }
+    : undefined;
+  const walletTx = await agent.setWallet(agentWallet, setWalletOpts);
   if (walletTx) await walletTx.waitMined();
+
+  const chainDef = defineChain({
+    id: ${chain.chainId},
+    name: '${chain.name.replace(/'/g, "\\'")}',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: { default: { http: [rpcUrl] } },
+  });
+  const publicClient = createPublicClient({ chain: chainDef, transport: http(rpcUrl) });
+  const balance = await publicClient.getBalance({ address: account.address });
+  const balanceEth = Number(balance) / 1e18;
+
+  let fundAmount = process.env.FUND_AGENT_ETH ? parseFloat(process.env.FUND_AGENT_ETH) : NaN;
+  if (Number.isNaN(fundAmount) || fundAmount < 0) {
+    console.log('');
+    const { fundChoice } = await inquirer.prompt<{ fundChoice: string }>([
+      {
+        type: 'list',
+        name: 'fundChoice',
+        message: \`Fund agent wallet from master account? (Available: \${balanceEth.toFixed(4)} ETH)\`,
+        choices: [
+          { name: 'Yes, transfer 0.002 ETH (recommended)', value: '0.002' },
+          { name: 'Yes, enter custom amount', value: 'custom' },
+          { name: 'No, skip', value: 'skip' },
+        ],
+      },
+    ]);
+    if (fundChoice === 'custom') {
+      const { amount } = await inquirer.prompt<{ amount: string }>([
+        { type: 'input', name: 'amount', message: 'Amount (ETH) to transfer:', default: '0.002' },
+      ]);
+      fundAmount = parseFloat(amount) || 0;
+    } else if (fundChoice !== 'skip') {
+      fundAmount = parseFloat(fundChoice) || 0;
+    } else {
+      fundAmount = 0;
+    }
+  }
+
+  if (fundAmount > 0 && agentWallet.toLowerCase() !== account.address.toLowerCase()) {
+    if (balanceEth < fundAmount) {
+      console.log(\`   ⚠️  Insufficient balance (\${balanceEth.toFixed(4)} ETH). Skipping transfer.\`);
+    } else {
+      console.log(\`   Transferring \${fundAmount} ETH to agent wallet...\`);
+      const walletClient = createWalletClient({ account, chain: chainDef, transport: http(rpcUrl) });
+      const hash = await walletClient.sendTransaction({
+        to: agentWallet,
+        value: parseEther(String(fundAmount)),
+      });
+      console.log('   Fund tx:', hash);
+    }
+  }
 
   // Output results
   console.log('');
@@ -257,6 +335,44 @@ ${
   console.log(\`   https://www.8004scan.io/agents/${chain.scanPath}/\${agentIdNum}\`);`
           : ""
   }
+
+  // Update local registry so "Give feedback" can list this agent
+  try {
+    const fs = await import('fs/promises');
+    const metaPath = path.join(process.cwd(), '.8004.json');
+    try {
+      const metaRaw = await fs.readFile(metaPath, 'utf-8');
+      const meta = JSON.parse(metaRaw);
+      const projectDir = meta.projectDir;
+      let dir = process.cwd();
+      const root = path.parse(dir).root;
+      while (dir !== root) {
+        const regPath = path.join(dir, '.8004-agents.json');
+        try {
+          const dataRaw = await fs.readFile(regPath, 'utf-8');
+          const data = JSON.parse(dataRaw);
+          const agents = Array.isArray(data.agents) ? data.agents : [];
+          let found = false;
+          const updated = agents.map((a) => {
+            if (a.projectDir !== projectDir) return a;
+            found = true;
+            return { ...a, agentId: result.agentId, chainId: ${chain.chainId} };
+          });
+          if (found) {
+            await fs.writeFile(regPath, JSON.stringify({ agents: updated }, null, 2));
+          }
+          break;
+        } catch {
+          dir = path.dirname(dir);
+        }
+      }
+    } catch {
+      // no .8004.json or not tracked
+    }
+  } catch {
+    // ignore registry errors
+  }
+
   console.log('');
   console.log('📋 Next steps:');
   console.log('   1. Update AGENT_CONFIG endpoints with your production URLs');
@@ -394,10 +510,23 @@ export async function generateResponse(userMessage: string, history: AgentMessag
 ${streamingCode}`;
 }
 
-export function generateReadme(answers: WizardAnswers, chain: ChainConfig): string {
+export interface ReadmeOptions {
+    /** Extra lines for the Project Structure (e.g. give-feedback.ts for Feedback Agent) */
+    extraStructureLines?: string[];
+    /** Extra markdown sections to insert after Project Structure */
+    extraSections?: string[];
+}
+
+export function generateReadme(
+    answers: WizardAnswers,
+    chain: ChainConfig,
+    opts?: ReadmeOptions
+): string {
     const hasA2A = hasFeature(answers, "a2a");
     const hasMCP = hasFeature(answers, "mcp");
     const hasX402 = hasFeature(answers, "x402");
+    const extraStructure = opts?.extraStructureLines?.join("\n") ?? "";
+    const extraSections = opts?.extraSections?.join("\n\n") ?? "";
 
     return `# ${answers.agentName}
 
@@ -485,11 +614,11 @@ ${answers.agentName.toLowerCase().replace(/\s+/g, "-")}/
 │   ├── register.ts      # Registration script
 │   ├── agent.ts         # LLM logic${hasA2A ? "\n│   ├── a2a-server.ts   # A2A server\n│   └── a2a-client.ts   # A2A testing client" : ""}${
         hasMCP ? "\n│   └── mcp-server.ts   # MCP server" : ""
-    }
+    }${extraStructure ? "\n" + extraStructure : ""}
 ├── .env                 # Environment variables (keep secret!)
 └── package.json
 \`\`\`
-${
+${extraSections ? extraSections + "\n\n" : ""}${
     hasX402
         ? `
 ## x402 Payments

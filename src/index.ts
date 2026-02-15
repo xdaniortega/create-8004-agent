@@ -2,116 +2,130 @@
 import chalk from "chalk";
 import ora from "ora";
 import { execSync } from "child_process";
-import { runWizard, hasFeature, isSolanaChain } from "./wizard.js";
+import { runMainMenu } from "./menu.js";
+import { runWizard, hasFeature } from "./wizard.js";
+import type { WizardAnswers } from "./wizard.js";
 import { generateProject } from "./generator.js";
+import { runGiveFeedback } from "./commands/give-feedback.js";
+import { runReadFeedback } from "./commands/read-feedback.js";
 
-async function main() {
-    console.log(chalk.bold.cyan("\n🤖 8004 Agent Generator\n"));
-    console.log(chalk.gray("Create a trustless AI agent with A2A, MCP, and x402 support\n"));
-    console.log(chalk.gray("Supports EVM chains (Base, Ethereum, Polygon, Linea) and Solana\n"));
+const NEXT_STEPS: Array<{
+    when: (a: WizardAnswers) => boolean;
+    title: string;
+    lines: (a: WizardAnswers) => string[];
+}> = [
+    {
+        when: (a) => a.projectDir !== ".",
+        title: "Navigate to your project",
+        lines: (a) => [`cd ${a.projectDir}`],
+    },
+    {
+        when: (a) => !!a.generatedPrivateKey,
+        title: "Back up your wallet",
+        lines: (a) => [
+            "⚠️  A new wallet was generated and added to .env",
+            `Address: ${a.agentWallet}`,
+            "→ Back up your .env file!",
+        ],
+    },
+    {
+        when: () => true,
+        title: "Configure .env",
+        lines: (a) =>
+            a.generatedPrivateKey
+                ? ["- Add OPENAI_API_KEY", "- Add PINATA_JWT (get one at pinata.cloud)"]
+                : ["- Add PRIVATE_KEY", "- Add OPENAI_API_KEY", "- Add PINATA_JWT (get one at pinata.cloud)"],
+    },
+    {
+        when: () => true,
+        title: "Fund your wallet with testnet ETH",
+        lines: () => ["→ https://cloud.google.com/application/web3/faucet/ethereum/sepolia"],
+    },
+    {
+        when: (a) => hasFeature(a, "a2a"),
+        title: "Start & deploy your A2A server",
+        lines: () => [
+            "npm run start:a2a",
+            "→ Test locally: http://localhost:3000/.well-known/agent-card.json",
+            "→ Deploy to Railway/Render/etc for public access",
+        ],
+    },
+    {
+        when: (a) => hasFeature(a, "a2a"),
+        title: "Update registration with your public URL",
+        lines: () => ["Change the A2A endpoint from example.com to your real URL"],
+    },
+    {
+        when: (a) => hasFeature(a, "mcp"),
+        title: "Start your MCP server",
+        lines: () => ["npm run start:mcp"],
+    },
+    {
+        when: () => true,
+        title: "Register your agent on-chain",
+        lines: () => ["npm run register"],
+    },
+];
 
-  try {
-    const answers = await runWizard();
+function printNextSteps(answers: WizardAnswers): void {
+    console.log(chalk.bold.cyan("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+    console.log(chalk.bold.cyan("  🚀 NEXT STEPS"));
+    console.log(chalk.bold.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 
-        console.log("\n");
-        const spinner = ora("Generating project files...").start();
-
-    await generateProject(answers);
-
-        const isSolana = isSolanaChain(answers.chain);
-        spinner.succeed(chalk.green(`${isSolana ? "8004" : "ERC-8004"} Agent generated successfully!`));
-
-    // Install dependencies automatically
-    const installDir = answers.projectDir === "." ? process.cwd() : answers.projectDir;
-    const installSpinner = ora("Installing dependencies...").start();
-    try {
-        execSync("npm install", { 
-            cwd: installDir, 
-            stdio: "pipe" 
-        });
-        installSpinner.succeed(chalk.green("Dependencies installed successfully!"));
-    } catch (error) {
-        installSpinner.fail(chalk.yellow("Failed to install dependencies. Run 'npm install' manually."));
-    }
-
-    // Print step-by-step guide
     let step = 1;
-
-        console.log(chalk.bold.cyan("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-        console.log(chalk.bold.cyan("  🚀 NEXT STEPS"));
-        console.log(chalk.bold.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
-
-    // Step 1: Navigate to directory (if not current)
-    if (answers.projectDir !== ".") {
-        console.log(chalk.bold.white(`${step}. Navigate to your project`));
-        console.log(chalk.gray(`   cd ${answers.projectDir}\n`));
+    for (const { when, title, lines } of NEXT_STEPS) {
+        if (!when(answers)) continue;
+        console.log(chalk.bold.white(`${step}. ${title}`));
+        for (const line of lines(answers)) {
+            const isCommand = line.startsWith("npm ") || line.startsWith("cd ");
+            console.log(isCommand ? chalk.cyan(`   ${line}`) : chalk.gray(`   ${line}`));
+        }
+        console.log("");
         step++;
     }
 
-    // Step 2: Wallet info (if generated)
-    if (answers.generatedPrivateKey) {
-      console.log(chalk.bold.white(`${step}. Back up your wallet`));
-            console.log(chalk.yellow("   ⚠️  A new wallet was generated and added to .env"));
-      console.log(chalk.gray(`   Address: ${answers.agentWallet}`));
-            console.log(chalk.gray("   → Back up your .env file!\n"));
-      step++;
+    console.log(chalk.bold.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+    console.log(chalk.gray("Learn more: https://eips.ethereum.org/EIPS/eip-8004"));
+    console.log("");
+}
+
+async function main() {
+    console.log(chalk.bold.cyan("\n  This is the ERC-8004 AI Agent wizard\n"));
+    console.log(chalk.gray("  Create agents, give feedback, and read reputation on ERC-8004.\n"));
+
+    const action = await runMainMenu();
+
+    if (action === "give-feedback") {
+        await runGiveFeedback();
+        return;
+    }
+    if (action === "read-feedback") {
+        await runReadFeedback();
+        return;
     }
 
-    // Step 3: Configure .env
-    console.log(chalk.bold.white(`${step}. Configure .env`));
-    if (!answers.generatedPrivateKey) {
-            console.log(chalk.gray(`   - Add ${isSolana ? "SOLANA_PRIVATE_KEY" : "PRIVATE_KEY"}`));
-    }
-        console.log(chalk.gray("   - Add OPENAI_API_KEY"));
-        console.log(chalk.gray("   - Add PINATA_JWT (get one at pinata.cloud)"));
-        console.log("");
-    step++;
+    try {
+        const answers = await runWizard();
 
-    // Step 4: Fund wallet
-        if (isSolana) {
-            console.log(chalk.bold.white(`${step}. Fund your wallet with devnet SOL`));
-            console.log(chalk.gray(`   → https://faucet.solana.com/\n`));
-        } else {
-    console.log(chalk.bold.white(`${step}. Fund your wallet with testnet ETH`));
-            console.log(chalk.gray(`   → https://cloud.google.com/application/web3/faucet/ethereum/sepolia\n`));
+        console.log("\n");
+        const spinner = ora("Generating project files...").start();
+        await generateProject(answers);
+        spinner.succeed(chalk.green("ERC-8004 Agent generated successfully!"));
+
+        const installDir = answers.projectDir === "." ? process.cwd() : answers.projectDir;
+        const installSpinner = ora("Installing dependencies...").start();
+        try {
+            execSync("npm install", { cwd: installDir, stdio: "pipe" });
+            installSpinner.succeed(chalk.green("Dependencies installed successfully!"));
+        } catch {
+            installSpinner.fail(chalk.yellow("Failed to install dependencies. Run 'npm install' manually."));
         }
-    step++;
 
-    // Step 5: Start/deploy server BEFORE registering
-        if (hasFeature(answers, "a2a")) {
-      console.log(chalk.bold.white(`${step}. Start & deploy your A2A server`));
-            console.log(chalk.cyan("   npm run start:a2a"));
-            console.log(chalk.gray("   → Test locally: http://localhost:3000/.well-known/agent-card.json"));
-            console.log(chalk.gray("   → Deploy to Railway/Render/etc for public access\n"));
-      step++;
-
-      console.log(chalk.bold.white(`${step}. Update registration.json with your public URL`));
-            console.log(chalk.gray("   Change the A2A endpoint from example.com to your real URL\n"));
-      step++;
-    }
-
-        if (hasFeature(answers, "mcp")) {
-      console.log(chalk.bold.white(`${step}. Start your MCP server`));
-            console.log(chalk.cyan("   npm run start:mcp\n"));
-      step++;
-    }
-
-    // Register AFTER server is hosted
-    console.log(chalk.bold.white(`${step}. Register your agent on-chain`));
-        console.log(chalk.cyan("   npm run register\n"));
-    step++;
-
-        console.log(chalk.bold.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-        if (isSolana) {
-            console.log(chalk.gray("Learn more: https://8004.org"));
-        } else {
-            console.log(chalk.gray("Learn more: https://eips.ethereum.org/EIPS/eip-8004"));
-        }
-        console.log("");
-  } catch (error) {
+        printNextSteps(answers);
+    } catch (error) {
         console.error(chalk.red("\n❌ Error:"), error);
-    process.exit(1);
-  }
+        process.exit(1);
+    }
 }
 
 main();

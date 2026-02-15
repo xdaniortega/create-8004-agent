@@ -1,7 +1,7 @@
 // Chain configs - SDK handles contract addresses internally
 // x402 facilitator: PayAI (https://facilitator.payai.network)
 // Supported: Base, Polygon
-// Not supported: Ethereum, Monad (no facilitator with x402 v2 support)
+// Not supported: Ethereum, Arbitrum (no facilitator with x402 v2 support)
 export const CHAINS = {
     // ============ MAINNETS ============
     "eth-mainnet": {
@@ -43,18 +43,6 @@ export const CHAINS = {
         x402Supported: true,
         facilitatorUrl: "https://facilitator.payai.network",
         usdcAddress: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // Native USDC
-        usdcName: "USD Coin",
-        usdcVersion: "2",
-    },
-    "monad-mainnet": {
-        name: "Monad Mainnet",
-        chainId: 143,
-        rpcUrl: "https://rpc.monad.xyz",
-        scanPath: "monad",
-        x402Network: "eip155:143",
-        x402Supported: false, // No facilitator supports Monad with x402 v2
-        facilitatorUrl: null,
-        usdcAddress: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", // Circle USDC
         usdcName: "USD Coin",
         usdcVersion: "2",
     },
@@ -101,21 +89,26 @@ export const CHAINS = {
         usdcName: "USDC",
         usdcVersion: "2",
     },
-    "monad-testnet": {
-        name: "Monad Testnet",
-        chainId: 10143,
-        rpcUrl: "https://testnet-rpc.monad.xyz",
-        scanPath: "monad-testnet",
-        x402Network: "eip155:10143",
-        x402Supported: false, // No facilitator supports Monad with x402 v2
-        facilitatorUrl: null,
-        usdcAddress: "0x534b2f3A21130d7a60830c2Df862319e593943A3", // Circle testnet USDC
-        usdcName: "USD Coin",
-        usdcVersion: "2",
-    },
 } as const;
 
 export type ChainKey = keyof typeof CHAINS;
 
 export const TRUST_MODELS = ["reputation", "crypto-economic", "tee-attestation"] as const;
 export type TrustModel = (typeof TRUST_MODELS)[number];
+
+// --- Chain helpers for prompts ---
+export function getChainKeys(): ChainKey[] {
+    return Object.keys(CHAINS) as ChainKey[];
+}
+
+export function getChainChoices(): { name: string; value: ChainKey }[] {
+    return getChainKeys().map((key) => ({ name: CHAINS[key].name, value: key }));
+}
+
+// --- Agent ID validation (chainId:tokenId) ---
+export const AGENT_ID_REGEX = /^\d+:\d+$/;
+export const AGENT_ID_MESSAGE = "Agent ID (format chainId:tokenId, e.g. 421614:5)";
+
+export function validateAgentId(v: string): true | string {
+    return AGENT_ID_REGEX.test((v ?? "").trim()) ? true : `Use format chainId:tokenId (e.g. 421614:5)`;
+}

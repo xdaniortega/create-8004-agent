@@ -1,21 +1,14 @@
 import type { WizardAnswers } from "../wizard.js";
-import { hasFeature, isSolanaChain } from "../wizard.js";
+import { hasFeature } from "../wizard.js";
 import { CHAINS } from "../config.js";
-import { SOLANA_CHAINS } from "../config-solana.js";
+import type { ChainKey } from "../config.js";
 
 function getX402Network(answers: WizardAnswers): string {
-    if (isSolanaChain(answers.chain)) {
-        return SOLANA_CHAINS[answers.chain as keyof typeof SOLANA_CHAINS].x402Network;
-    }
-    return CHAINS[answers.chain as keyof typeof CHAINS].x402Network;
+    return CHAINS[answers.chain as ChainKey].x402Network;
 }
 
 function getFacilitatorUrl(answers: WizardAnswers): string {
-    if (isSolanaChain(answers.chain)) {
-        // Solana uses PayAI facilitator
-        return "https://facilitator.payai.network";
-    }
-    const chainConfig = CHAINS[answers.chain as keyof typeof CHAINS];
+    const chainConfig = CHAINS[answers.chain as ChainKey];
     return chainConfig.facilitatorUrl || "https://facilitator.payai.network";
 }
 
@@ -26,31 +19,24 @@ interface UsdcConfig {
 }
 
 function getUsdcConfig(answers: WizardAnswers): UsdcConfig | null {
-    if (isSolanaChain(answers.chain)) {
-        return null; // Solana handles USDC differently
-    }
-    const chainConfig = CHAINS[answers.chain as keyof typeof CHAINS];
+    const chainConfig = CHAINS[answers.chain as ChainKey];
     if (!chainConfig.usdcAddress) return null;
     return {
         address: chainConfig.usdcAddress,
-        name: (chainConfig as any).usdcName || "USD Coin",
-        version: (chainConfig as any).usdcVersion || "2",
+        name: (chainConfig as { usdcName?: string }).usdcName || "USD Coin",
+        version: (chainConfig as { usdcVersion?: string }).usdcVersion || "2",
     };
 }
 
 export function generateA2AServer(answers: WizardAnswers): string {
-    const isSolana = isSolanaChain(answers.chain);
     const x402Network = hasFeature(answers, "x402") ? getX402Network(answers) : "";
     const facilitatorUrl = hasFeature(answers, "x402") ? getFacilitatorUrl(answers) : "";
     const usdcConfig = hasFeature(answers, "x402") ? getUsdcConfig(answers) : null;
 
-    // x402 v2 imports - @x402/evm for EVM chains, @x402/svm for Solana
-    const x402SchemePackage = isSolana ? "@x402/svm" : "@x402/evm";
-    const x402SchemeClass = isSolana ? "ExactSvmScheme" : "ExactEvmScheme";
     const x402Import = hasFeature(answers, "x402")
         ? `import { paymentMiddleware, x402ResourceServer } from '@x402/express';
 import { HTTPFacilitatorClient } from '@x402/core/server';
-import { ${x402SchemeClass} } from '${x402SchemePackage}/exact/server';`
+import { ExactEvmScheme } from '@x402/evm/exact/server';`
         : "";
 
     const streamingImport = answers.a2aStreaming
@@ -70,7 +56,7 @@ const USDC_VERSION = '${usdcConfig.version}';
 const USDC_DECIMALS = 6;
 
 // Create scheme with custom USDC parser including EIP-712 domain params
-const evmScheme = new ${x402SchemeClass}();
+const evmScheme = new ExactEvmScheme();
 evmScheme.registerMoneyParser(async (amount) => {
   // Convert dollar amount to USDC units (6 decimals)
   const units = Math.floor(amount * Math.pow(10, USDC_DECIMALS));
@@ -86,7 +72,7 @@ evmScheme.registerMoneyParser(async (amount) => {
 `
         : `
 // Create scheme (using SDK default USDC address)
-const evmScheme = new ${x402SchemeClass}();
+const evmScheme = new ExactEvmScheme();
 `;
 
     const x402Setup = hasFeature(answers, "x402")
@@ -94,14 +80,14 @@ const evmScheme = new ${x402SchemeClass}();
 // x402 v2 payment middleware - protects the /a2a endpoint
 // Facilitator: ${facilitatorComment}
 const PAYEE_ADDRESS = process.env.X402_PAYEE_ADDRESS || '${answers.agentWallet}';
-const X402_NETWORK = '${x402Network}'; // CAIP-2 ${isSolana ? "Solana" : "EVM"} network
+const X402_NETWORK = '${x402Network}'; // CAIP-2 EVM network
 
 // Create facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({
   url: '${facilitatorUrl}',
 });
 ${customUsdcParser}
-// Register ${isSolana ? "SVM" : "EVM"} scheme for payment verification
+// Register EVM scheme for payment verification
 const x402Server = new x402ResourceServer(facilitatorClient)
   .register(X402_NETWORK, evmScheme);
 
