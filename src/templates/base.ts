@@ -42,7 +42,7 @@ export function generatePackageJson(answers: WizardAnswers): string {
     };
 
     const dependencies: Record<string, string> = {
-        "agent0-sdk": "latest",
+        "@blockbyvlog/agent0-sdk": "latest",
         dotenv: "^16.3.1",
         openai: "^4.68.0",
     };
@@ -100,7 +100,7 @@ PRIVATE_KEY=${privateKeyValue}
 # RPC URL for ${chain.name}
 RPC_URL=${chain.rpcUrl}
 
-# Pinata for IPFS uploads (required for agent0-sdk)
+# Pinata for IPFS uploads (required for @blockbyvlog/agent0-sdk)
 PINATA_JWT=your_pinata_jwt_here
 
 # OpenAI API key for LLM agent
@@ -149,7 +149,7 @@ export function generateRegisterScript(answers: WizardAnswers, chain: ChainConfi
  */
 
 import 'dotenv/config';
-import { SDK } from 'agent0-sdk';
+import { SDK } from '@blockbyvlog/agent0-sdk';
 
 // ============================================================================
 // Agent Configuration

@@ -82,14 +82,18 @@ my-agent/
 
 ## Supported Chains
 
+EVM chains use the same registration flow via [@blockbyvlog/agent0-sdk](https://www.npmjs.com/package/@blockbyvlog/agent0-sdk).
+
 ### EVM Chains
 
-| Chain         | Identity Registry                            | Status       |
-| ------------- | -------------------------------------------- | ------------ |
-| ETH Sepolia   | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | ✅ Available |
-| Base Sepolia  | Coming soon                                  | 🔜 Pending   |
-| Linea Sepolia | Coming soon                                  | 🔜 Pending   |
-| Polygon Amoy  | Coming soon                                  | 🔜 Pending   |
+| Chain           | Identity Registry                            | Status       |
+| --------------- | -------------------------------------------- | ------------ |
+| ETH Sepolia     | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | ✅ Available |
+| Arbitrum One    | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` | ✅ Available |
+| Arbitrum Sepolia| `0x8004A818BFB912233c491871b3d84c89A494BD9e` | ✅ Available |
+| Base Sepolia    | Coming soon                                  | 🔜 Pending   |
+| Linea Sepolia   | Coming soon                                  | 🔜 Pending   |
+| Polygon Amoy    | Coming soon                                  | 🔜 Pending   |
 
 ### Solana
 
@@ -301,7 +305,6 @@ If `TEST_PAYER_PRIVATE_KEY` is not set, x402 paid request tests will be skipped 
 -   [x402 Protocol](https://x402.org)
 -   [PayAI Facilitator](https://payai.network) - x402 facilitator for Base, Polygon
 -   [8004-solana SDK](https://github.com/8004-ai/8004-solana) - Solana implementation
-
 ## License
 
 MIT
