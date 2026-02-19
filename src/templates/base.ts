@@ -12,6 +12,7 @@ function getFundingInstructions(chain: ChainConfig): string {
         8453: "ETH", // Base
         137: "MATIC", // Polygon
         143: "MON", // Monad
+        42161: "ETH", // Arbitrum One
     };
 
     if (mainnetChains[chain.chainId]) {
@@ -25,6 +26,7 @@ function getFundingInstructions(chain: ChainConfig): string {
         84532: "https://www.coinbase.com/faucets/base-ethereum-goerli-faucet", // Base Sepolia
         80002: "https://faucet.polygon.technology/", // Polygon Amoy
         10143: "https://faucet.monad.xyz/", // Monad Testnet
+        421614: "https://faucet.quicknode.com/arbitrum/sepolia", // Arbitrum Sepolia
     };
 
     const faucetUrl = faucets[chain.chainId];
@@ -238,6 +240,9 @@ ${
   console.log('');
 
   const txHandle = await agent.registerIPFS();
+  if (!txHandle) {
+    throw new Error('Registration failed: SDK did not return a transaction handle. The chain may not be supported.');
+  }
   const { result } = await txHandle.waitMined();
 
   // Set agent wallet via ERC-8004 v2 setAgentWallet() (not deprecated metadata)
@@ -245,7 +250,11 @@ ${
   console.log('');
   console.log('🔐 Setting agent wallet via setAgentWallet()...');
   const walletTx = await agent.setWallet('${answers.agentWallet}');
-  await walletTx.waitMined();
+  if (walletTx) {
+    await walletTx.waitMined();
+  } else {
+    console.log('   (Wallet already set or no-op; skipping.)');
+  }
 
   // Output results
   console.log('');

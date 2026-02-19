@@ -48,6 +48,16 @@ export const CHAINS = {
         usdcName: "USD Coin",
         usdcVersion: "2",
     },
+    "arbitrum-mainnet": {
+        name: "Arbitrum One",
+        chainId: 42161,
+        rpcUrl: "https://arb1.arbitrum.io/rpc",
+        scanPath: "arbitrum",
+        x402Network: "eip155:42161",
+        x402Supported: false,
+        facilitatorUrl: null,
+        usdcAddress: null,
+    },
     // ============ TESTNETS ============
     "eth-sepolia": {
         name: "Ethereum Sepolia (Testnet)",
@@ -92,6 +102,16 @@ export const CHAINS = {
         usdcAddress: "0x534b2f3A21130d7a60830c2Df862319e593943A3", // Circle testnet USDC
         usdcName: "USD Coin",
         usdcVersion: "2",
+    },
+    "arbitrum-sepolia": {
+        name: "Arbitrum Sepolia (Testnet)",
+        chainId: 421614,
+        rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
+        scanPath: "arbitrum-sepolia",
+        x402Network: "eip155:421614",
+        x402Supported: false,
+        facilitatorUrl: null,
+        usdcAddress: null,
     },
 } as const;
 

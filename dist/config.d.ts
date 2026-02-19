@@ -43,6 +43,16 @@ export declare const CHAINS: {
         readonly usdcName: "USD Coin";
         readonly usdcVersion: "2";
     };
+    readonly "arbitrum-mainnet": {
+        readonly name: "Arbitrum One";
+        readonly chainId: 42161;
+        readonly rpcUrl: "https://arb1.arbitrum.io/rpc";
+        readonly scanPath: "arbitrum";
+        readonly x402Network: "eip155:42161";
+        readonly x402Supported: false;
+        readonly facilitatorUrl: null;
+        readonly usdcAddress: null;
+    };
     readonly "eth-sepolia": {
         readonly name: "Ethereum Sepolia (Testnet)";
         readonly chainId: 11155111;
@@ -86,6 +96,16 @@ export declare const CHAINS: {
         readonly usdcAddress: "0x534b2f3A21130d7a60830c2Df862319e593943A3";
         readonly usdcName: "USD Coin";
         readonly usdcVersion: "2";
+    };
+    readonly "arbitrum-sepolia": {
+        readonly name: "Arbitrum Sepolia (Testnet)";
+        readonly chainId: 421614;
+        readonly rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc";
+        readonly scanPath: "arbitrum-sepolia";
+        readonly x402Network: "eip155:421614";
+        readonly x402Supported: false;
+        readonly facilitatorUrl: null;
+        readonly usdcAddress: null;
     };
 };
 export type ChainKey = keyof typeof CHAINS;
