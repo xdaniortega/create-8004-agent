@@ -1,6 +1,7 @@
 import type { WizardAnswers } from "../../wizard.js";
 import { hasFeature } from "../../wizard.js";
 import { CHAINS } from "../../config.js";
+import type { AgentArchetype } from "../../archetypes/index.js";
 
 type ChainConfig = (typeof CHAINS)[keyof typeof CHAINS];
 
@@ -33,7 +34,7 @@ function getFundingInstructions(chain: ChainConfig): string {
     return "\nFund your wallet with native tokens for gas fees.\n";
 }
 
-export function generatePackageJson(answers: WizardAnswers): string {
+export function generatePackageJson(answers: WizardAnswers, archetype?: AgentArchetype): string {
     const scripts: Record<string, string> = {
         build: "tsc",
         register: "tsx src/register.ts",
@@ -73,6 +74,18 @@ export function generatePackageJson(answers: WizardAnswers): string {
         dependencies["@x402/express"] = "^2.0.0";
         dependencies["@x402/core"] = "^2.0.0";
         dependencies["@x402/evm"] = "^2.0.0";
+    }
+
+    // Orchestrator archetype extra scripts
+    if (answers.archetype === "orchestrator") {
+        scripts["start:orchestrator"] = "tsx src/orchestrator.ts";
+        scripts["discover"] = "tsx src/orchestrator.ts --discover";
+        scripts["feedback"] = "tsx src/orchestrator.ts --feedback";
+    }
+
+    // Merge archetype extra dependencies
+    if (archetype?.extraDependencies) {
+        Object.assign(dependencies, archetype.extraDependencies);
     }
 
     return JSON.stringify(
@@ -128,6 +141,27 @@ X402_PRICE=$0.001
 # Pre-fund: transfer this much ETH from master to agent wallet when you run register
 FUND_AGENT_ETH=${preFundAmount}
 `;
+    }
+
+    // Add registry addresses for archetypes that read on-chain data
+    if (answers.archetype === "orchestrator" || (answers.skills && answers.skills.length > 0)) {
+        const identityAddr = (chain as { identityRegistry?: string | null }).identityRegistry;
+        const reputationAddr = (chain as { reputationRegistry?: string | null }).reputationRegistry;
+        if (identityAddr || reputationAddr) {
+            env += `
+# ERC-8004 Identity Registry
+IDENTITY_REGISTRY_ADDRESS=${identityAddr ?? "# not deployed on this chain"}
+
+# ERC-8004 Reputation Registry
+REPUTATION_REGISTRY_ADDRESS=${reputationAddr ?? "# not deployed on this chain"}
+`;
+        } else {
+            env += `
+# ERC-8004 registries (not yet deployed on ${chain.name} — use Arbitrum Sepolia or ETH Sepolia)
+# IDENTITY_REGISTRY_ADDRESS=
+# REPUTATION_REGISTRY_ADDRESS=
+`;
+        }
     }
 
     return env;
@@ -241,10 +275,18 @@ ${
   agent.setActive(false);
   agent.setX402Support(${hasX402});
 
-  // Optional: Add OASF skills and domains for better discoverability
-  // Browse taxonomy: https://github.com/agntcy/oasf
-  // agent.addSkill('natural_language_processing/natural_language_generation/summarization');
-  // agent.addDomain('technology/software_engineering');
+  // OASF skills and domains for discoverability
+  // Browse taxonomy: https://schema.oasf.outshift.com/0.8.0
+${
+    (answers.skills ?? []).length > 0
+        ? (answers.skills ?? []).map((s) => `  agent.addSkill('${s}');`).join("\n")
+        : "  // agent.addSkill('natural_language_processing/natural_language_generation/summarization');"
+}
+${
+    (answers.domains ?? []).length > 0
+        ? (answers.domains ?? []).map((d) => `  agent.addDomain('${d}');`).join("\n")
+        : "  // agent.addDomain('technology/software_engineering');"
+}
 
   // Register on-chain with IPFS
   console.log('⛓️  Registering agent on ${chain.name}...');
@@ -387,7 +429,7 @@ main().catch((error) => {
 `;
 }
 
-export function generateAgentTs(answers: WizardAnswers): string {
+export function generateAgentTs(answers: WizardAnswers, systemPrompt?: string): string {
     const streamingCode = answers.a2aStreaming
         ? `
 /**
@@ -401,7 +443,7 @@ export function generateAgentTs(answers: WizardAnswers): string {
 export async function* streamResponse(userMessage: string, history: AgentMessage[] = []): AsyncGenerator<string> {
   const systemPrompt: AgentMessage = {
     role: 'system',
-    content: 'You are a helpful AI assistant registered on the ERC-8004 protocol. Be concise and helpful.',
+    content: ${JSON.stringify(systemPrompt ?? "You are a helpful AI assistant registered on the ERC-8004 protocol. Be concise and helpful.")},
   };
 
   const messages: AgentMessage[] = [
@@ -495,7 +537,7 @@ export async function generateResponse(userMessage: string, history: AgentMessag
   // Customize this to match your agent's purpose
   const systemPrompt: AgentMessage = {
     role: 'system',
-    content: 'You are a helpful AI assistant registered on the ERC-8004 protocol. Be concise and helpful.',
+    content: ${JSON.stringify(systemPrompt ?? "You are a helpful AI assistant registered on the ERC-8004 protocol. Be concise and helpful.")},
   };
 
   // Build the full message array: system prompt + history + new message

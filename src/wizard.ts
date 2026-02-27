@@ -4,6 +4,7 @@ import path from "path";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { CHAINS, TRUST_MODELS, type ChainKey, type TrustModel } from "./config.js";
 import type { AgentType } from "./types.js";
+import { ARCHETYPES } from "./archetypes/index.js";
 
 function getAvailableDir(baseDir: string): string {
     if (baseDir === ".") return baseDir;
@@ -23,6 +24,7 @@ function getAvailableDir(baseDir: string): string {
 export type { AgentType } from "./types.js";
 
 export interface WizardAnswers {
+    archetype: string;
     agentType: AgentType;
     projectDir: string;
     agentName: string;
@@ -48,6 +50,7 @@ export const isFeedbackAgent = (answers: WizardAnswers): boolean =>
     answers.agentType === "feedback-agent";
 
 interface RawAnswers {
+    archetype: string;
     agentType: AgentType;
     projectDir: string;
     agentName: string;
@@ -67,6 +70,25 @@ export async function runWizard(): Promise<WizardAnswers> {
     console.log("\n");
 
     const answers = await inquirer.prompt<RawAnswers>([
+        {
+            type: "list",
+            name: "archetype",
+            message: "What kind of agent do you want to create?",
+            choices: [
+                new inquirer.Separator("── Agent Archetypes (ready to use) ──"),
+                ...Object.values(ARCHETYPES)
+                    .filter((a) => a.id !== "custom")
+                    .map((a) => ({
+                        name: `${a.emoji} ${a.name} — ${a.description}`,
+                        value: a.id,
+                    })),
+                new inquirer.Separator("── Custom ──"),
+                {
+                    name: "🛠️  Custom Agent — blank agent, you define everything",
+                    value: "custom",
+                },
+            ],
+        },
         {
             type: "list",
             name: "agentType",
@@ -92,7 +114,7 @@ export async function runWizard(): Promise<WizardAnswers> {
             type: "input",
             name: "agentDescription",
             message: "Agent description:",
-            default: "test agent created with create-8004-agent",
+            default: (ans: Partial<RawAnswers>) => ARCHETYPES[ans.archetype ?? "custom"]?.description ?? "test agent created with create-8004-agent",
         },
         {
             type: "input",
@@ -135,11 +157,34 @@ export async function runWizard(): Promise<WizardAnswers> {
             choices: (ans: Partial<RawAnswers>) => {
                 const chainConfig = ans.chain ? CHAINS[ans.chain] : null;
                 const x402Supported = chainConfig?.x402Supported ?? false;
+                const archetype = ARCHETYPES[ans.archetype ?? "custom"];
+                const required = archetype?.requiredFeatures ?? [];
                 return [
-                    { name: "A2A Server (agent-to-agent communication)", value: "a2a", checked: true },
-                    { name: "MCP Server (Model Context Protocol tools)", value: "mcp", checked: false },
+                    {
+                        name: required.includes("a2a")
+                            ? "A2A Server (agent-to-agent communication) [required by archetype]"
+                            : "A2A Server (agent-to-agent communication)",
+                        value: "a2a",
+                        checked: true,
+                        disabled: required.includes("a2a") ? "Required by archetype" : false,
+                    },
+                    {
+                        name: required.includes("mcp")
+                            ? "MCP Server (Model Context Protocol tools) [required by archetype]"
+                            : "MCP Server (Model Context Protocol tools)",
+                        value: "mcp",
+                        checked: required.includes("mcp"),
+                        disabled: required.includes("mcp") ? "Required by archetype" : false,
+                    },
                     x402Supported
-                        ? { name: "x402 Payments (USDC micropayments)", value: "x402", checked: false }
+                        ? {
+                              name: required.includes("x402")
+                                  ? "x402 Payments (USDC micropayments) [required by archetype]"
+                                  : "x402 Payments (USDC micropayments)",
+                              value: "x402",
+                              checked: required.includes("x402"),
+                              disabled: required.includes("x402") ? "Required by archetype" : false,
+                          }
                         : { name: "x402 Payments", value: "x402", disabled: "Not available on this chain" },
                 ];
             },
@@ -210,8 +255,14 @@ export async function runWizard(): Promise<WizardAnswers> {
         console.log("\n🔑 Generated new wallet:", agentWallet);
     }
 
+    // Merge archetype required features (inquirer disabled items aren't included in checkbox output)
+    const archetype = ARCHETYPES[answers.archetype ?? "custom"];
+    const requiredFeatures = archetype?.requiredFeatures ?? [];
+    const mergedFeatures = Array.from(new Set([...answers.features, ...requiredFeatures])) as ("a2a" | "mcp" | "x402")[];
+
     return {
         ...answers,
+        archetype: answers.archetype ?? "custom",
         agentType: answers.agentType,
         projectDir,
         agentWallet,
@@ -220,5 +271,8 @@ export async function runWizard(): Promise<WizardAnswers> {
         useMasterPinataJwt: answers.useMasterPinataJwt ?? false,
         preFundFromMaster: answers.preFundFromMaster ?? false,
         preFundAmount: answers.preFundAmount?.trim() || "0.002",
+        features: mergedFeatures,
+        skills: archetype?.skills ?? [],
+        domains: archetype?.domains ?? [],
     };
 }

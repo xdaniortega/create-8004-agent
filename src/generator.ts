@@ -20,6 +20,7 @@ import {
 import { generateA2AServer, generateAgentCard, generateA2AClient } from "./templates/protocols/a2a.js";
 import { generateMCPServer, generateMCPTools } from "./templates/protocols/mcp.js";
 import { upsertAgent } from "./registry.js";
+import { ARCHETYPES } from "./archetypes/index.js";
 
 export async function generateProject(answers: WizardAnswers): Promise<void> {
     const projectPath = path.resolve(process.cwd(), answers.projectDir);
@@ -32,8 +33,16 @@ export async function generateProject(answers: WizardAnswers): Promise<void> {
     }
 
     const chain = CHAINS[answers.chain];
+    const archetype = ARCHETYPES[answers.archetype ?? "custom"];
 
-    let packageJson = generatePackageJson(answers);
+    // Merge archetype OASF metadata into answers (used by register.ts template)
+    if (archetype && archetype.id !== "custom") {
+        answers.skills = archetype.skills;
+        answers.domains = archetype.domains;
+    }
+
+    // Build package.json (with archetype extra deps + orchestrator scripts)
+    let packageJson = generatePackageJson(answers, archetype);
     if (isFeedbackAgent(answers)) {
         const pkg = JSON.parse(packageJson) as { scripts: Record<string, string> };
         Object.assign(pkg.scripts, getPackageJsonExtras().scripts);
@@ -46,7 +55,7 @@ export async function generateProject(answers: WizardAnswers): Promise<void> {
     await writeFile(projectPath, ".env", env);
 
     await writeFile(projectPath, "src/register.ts", generateRegisterScript(answers, chain));
-    await writeFile(projectPath, "src/agent.ts", generateAgentTs(answers));
+    await writeFile(projectPath, "src/agent.ts", generateAgentTs(answers, archetype?.systemPrompt));
     await writeFile(projectPath, "tsconfig.json", generateTsConfig());
     await writeFile(projectPath, ".gitignore", generateGitignore());
 
@@ -67,7 +76,17 @@ export async function generateProject(answers: WizardAnswers): Promise<void> {
 
     if (hasFeature(answers, "mcp")) {
         await writeFile(projectPath, "src/mcp-server.ts", generateMCPServer(answers));
-        await writeFile(projectPath, "src/tools.ts", generateMCPTools());
+        await writeFile(projectPath, "src/tools.ts", generateMCPTools(archetype?.mcpTools));
+    }
+
+    // Generate archetype extra files (e.g. registry-service.ts, orchestrator.ts)
+    if (archetype && archetype.id !== "custom") {
+        for (const extra of archetype.extraTemplates) {
+            // Ensure nested directories exist
+            const fullPath = path.join(projectPath, extra.path);
+            await fs.mkdir(path.dirname(fullPath), { recursive: true });
+            await fs.writeFile(fullPath, extra.generator(answers), "utf-8");
+        }
     }
 
     const repoRoot = process.cwd();

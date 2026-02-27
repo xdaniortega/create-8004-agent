@@ -62,6 +62,7 @@ export interface TestAgentOptions {
     features: ('a2a' | 'mcp' | 'x402')[];
     a2aStreaming?: boolean;
     projectName?: string;
+    archetype?: string;
 }
 
 /**
@@ -78,6 +79,8 @@ export async function generateTestAgent(options: TestAgentOptions): Promise<stri
     await fs.rm(projectDir, { recursive: true, force: true });
     
     const answers: WizardAnswers = {
+        archetype: options.archetype ?? 'custom',
+        agentType: 'generic',
         projectDir: projectDir,
         agentName: `Test Agent ${options.chain}`,
         agentDescription: `Comprehensive test agent for ${options.chain}`,

@@ -1,4 +1,5 @@
 import type { WizardAnswers } from "../../wizard.js";
+import type { MCPToolDefinition } from "../../archetypes/index.js";
 
 export function generateMCPServer(answers: WizardAnswers): string {
     return `/**
@@ -93,7 +94,23 @@ main().catch(console.error);
 `;
 }
 
-export function generateMCPTools(): string {
+export function generateMCPTools(archetypeTools?: MCPToolDefinition[]): string {
+    const extraToolDefs = archetypeTools && archetypeTools.length > 0
+        ? archetypeTools.map((t) => `
+  {
+    name: '${t.name}',
+    description: ${JSON.stringify(t.description)},
+    inputSchema: ${JSON.stringify(t.inputSchema, null, 4).split("\n").join("\n    ")},
+  },`).join("")
+        : "";
+
+    const extraToolCases = archetypeTools && archetypeTools.length > 0
+        ? archetypeTools.map((t) => `
+    case '${t.name}': {
+      ${t.implementation}
+    }`).join("")
+        : "";
+
     return `/**
  * MCP Tools Definition
  * 
@@ -115,7 +132,7 @@ import { generateResponse } from './agent.js';
 // Add new tools here - these are exposed to MCP clients
 // ============================================================================
 
-export const tools = [
+export const tools = [${extraToolDefs}
   {
     name: 'chat',
     description: 'Have a conversation with the AI agent',
@@ -175,6 +192,8 @@ export const tools = [
 
 export async function handleToolCall(name: string, args: Record<string, unknown>): Promise<unknown> {
   switch (name) {
+    // Archetype-specific tools${extraToolCases}
+
     // Chat tool - uses the LLM agent
     case 'chat': {
       const message = args.message as string;
