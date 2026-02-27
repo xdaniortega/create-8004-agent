@@ -8,6 +8,9 @@ CLI tool to scaffold [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) complia
 - [What is ERC-8004?](#what-is-erc-8004)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
+- [Agent Archetypes](#agent-archetypes)
+- [Orchestrator Agent](#orchestrator-agent)
+- [Registry Service](#registry-service)
 - [What Gets Generated](#what-gets-generated)
 - [Wizard Options](#wizard-options)
 - [Supported Chains](#supported-chains)
@@ -44,6 +47,79 @@ npx create-8004-agent
 
 That's it! The wizard will guide you through creating your agent.
 
+## Agent Archetypes
+
+The wizard's first question lets you choose a pre-configured agent type. Each archetype comes with a ready-to-use system prompt, MCP tools, OASF skills/domains, and the correct features pre-selected.
+
+| Archetype | Emoji | Description |
+|-----------|-------|-------------|
+| **Research Agent** | 🔍 | Web search, content summarisation, report generation |
+| **Code Agent** | 💻 | Code generation, review, debugging, and explanation |
+| **Document Agent** | 📄 | Document analysis, content extraction, and transformation |
+| **Orchestrator Agent** | 🤖 | Discovers 8004 agents, delegates tasks, manages feedback |
+| **Custom Agent** | 🛠️ | Blank agent — you define everything (original behaviour) |
+
+Choosing **Custom** gives you the same blank-slate agent as previous versions of the CLI — fully backwards compatible.
+
+---
+
+## Orchestrator Agent
+
+The Orchestrator is a special archetype that coordinates other ERC-8004 agents. Instead of doing work itself, it:
+
+1. Receives a task in natural language
+2. Searches the Identity Registry for agents with matching OASF skills
+3. Reads their reputation scores from the Reputation Registry
+4. Presents candidates to the user with scores and feedback counts
+5. Delegates the task via the A2A protocol
+6. Shows the result and asks for feedback (recorded on-chain)
+
+### Commands
+
+```bash
+npm run start:orchestrator   # Interactive orchestration mode
+npm run discover             # List all agents in the registry
+npm run feedback             # Give direct feedback to an agent
+```
+
+### Requirements
+
+- A chain with deployed ERC-8004 registries (Arbitrum One, Arbitrum Sepolia, Ethereum Mainnet, Ethereum Sepolia)
+- `IDENTITY_REGISTRY_ADDRESS` and `REPUTATION_REGISTRY_ADDRESS` set in `.env`
+- `OPENAI_API_KEY` for the LLM orchestration loop
+
+---
+
+## Registry Service
+
+When you generate an Orchestrator agent, a `src/registry-service.ts` file is created that provides:
+
+```typescript
+// Discover agents in the Identity Registry (optionally filter by OASF skills)
+const agents = await discoverAgents(['natural_language_processing/summarization']);
+
+// Get reputation summary from the Reputation Registry
+const rep = await getReputation(agentId);
+// → { totalFeedback, averageScore, lastFeedbackTimestamp }
+
+// Get all individual feedback entries
+const feedback = await getDetailedFeedback(agentId);
+
+// Submit feedback on-chain (requires agent auth signature from A2A response)
+const txHash = await giveFeedback(agentId, score, tags, comment, authSig, expiry, maxIndex);
+```
+
+### Registry Addresses
+
+| Chain | Identity Registry | Reputation Registry |
+|-------|-------------------|---------------------|
+| Ethereum Mainnet | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
+| Arbitrum One | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
+| Ethereum Sepolia | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
+| Arbitrum Sepolia | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
+
+---
+
 ## What Gets Generated
 
 The wizard creates a complete agent project with:
@@ -51,17 +127,19 @@ The wizard creates a complete agent project with:
 ```
 agents/my-agent/
 ├── package.json
-├── .env.example
-├── registration.json          # ERC-8004 metadata
+├── .env                       # Environment variables (keep secret!)
 ├── tsconfig.json
 ├── src/
 │   ├── register.ts            # On-chain registration script
-│   ├── agent.ts               # LLM agent (OpenAI)
-│   ├── a2a-server.ts          # A2A protocol server (optional)
-│   ├── mcp-server.ts          # MCP protocol server (optional)
-│   └── tools.ts               # MCP tools (optional)
+│   ├── agent.ts               # LLM agent (system prompt from archetype)
+│   ├── a2a-server.ts          # A2A protocol server (if selected)
+│   ├── a2a-client.ts          # A2A test client (if selected)
+│   ├── mcp-server.ts          # MCP protocol server (if selected)
+│   ├── tools.ts               # MCP tools, incl. archetype tools (if selected)
+│   ├── registry-service.ts    # On-chain registry reader (Orchestrator only)
+│   └── orchestrator.ts        # Interactive orchestration CLI (Orchestrator only)
 └── .well-known/
-    └── agent-card.json        # A2A discovery card
+    └── agent-card.json        # A2A discovery card (if A2A selected)
 ```
 
 ## Wizard Options
