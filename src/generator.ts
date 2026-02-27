@@ -9,7 +9,7 @@ import {
     generateRegisterScript,
     generateAgentTs,
     generateReadme,
-} from "./templates/base.js";
+} from "./templates/core/base.js";
 import {
     getPackageJsonExtras,
     getEnvBlock,
@@ -17,8 +17,8 @@ import {
     getReadmeSection,
     generateGiveFeedbackScript,
 } from "./templates/feedback-agent.js";
-import { generateA2AServer, generateAgentCard, generateA2AClient } from "./templates/a2a.js";
-import { generateMCPServer, generateMCPTools } from "./templates/mcp.js";
+import { generateA2AServer, generateAgentCard, generateA2AClient } from "./templates/protocols/a2a.js";
+import { generateMCPServer, generateMCPTools } from "./templates/protocols/mcp.js";
 import { upsertAgent } from "./registry.js";
 
 export async function generateProject(answers: WizardAnswers): Promise<void> {

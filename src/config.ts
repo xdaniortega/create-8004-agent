@@ -13,6 +13,8 @@ export const CHAINS = {
         x402Supported: false, // No facilitator supports Ethereum mainnet
         facilitatorUrl: null,
         usdcAddress: null,
+        identityRegistry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as string | null,
+        reputationRegistry: "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" as string | null,
     },
     "arbitrum-mainnet": {
         name: "Arbitrum One",
@@ -23,6 +25,8 @@ export const CHAINS = {
         x402Supported: false, // No facilitator supports Arbitrum with x402 v2 (yet)
         facilitatorUrl: null,
         usdcAddress: null,
+        identityRegistry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as string | null,
+        reputationRegistry: "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" as string | null,
     },
     "base-mainnet": {
         name: "Base Mainnet",
@@ -33,6 +37,8 @@ export const CHAINS = {
         x402Supported: true,
         facilitatorUrl: "https://facilitator.payai.network",
         usdcAddress: null, // SDK has default
+        identityRegistry: null as string | null,
+        reputationRegistry: null as string | null,
     },
     "polygon-mainnet": {
         name: "Polygon Mainnet",
@@ -45,6 +51,8 @@ export const CHAINS = {
         usdcAddress: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // Native USDC
         usdcName: "USD Coin",
         usdcVersion: "2",
+        identityRegistry: null as string | null,
+        reputationRegistry: null as string | null,
     },
     // ============ TESTNETS ============
     "eth-sepolia": {
@@ -56,6 +64,8 @@ export const CHAINS = {
         x402Supported: false, // No facilitator supports Ethereum Sepolia
         facilitatorUrl: null,
         usdcAddress: null,
+        identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e" as string | null,
+        reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713" as string | null,
     },
     "arbitrum-sepolia": {
         name: "Arbitrum Sepolia (Testnet)",
@@ -66,6 +76,8 @@ export const CHAINS = {
         x402Supported: false, // No facilitator supports Arbitrum Sepolia with x402 v2 (yet)
         facilitatorUrl: null,
         usdcAddress: null,
+        identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e" as string | null,
+        reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713" as string | null,
     },
     "base-sepolia": {
         name: "Base Sepolia (Testnet)",
@@ -76,6 +88,8 @@ export const CHAINS = {
         x402Supported: true,
         facilitatorUrl: "https://facilitator.payai.network",
         usdcAddress: null, // SDK has default
+        identityRegistry: null as string | null,
+        reputationRegistry: null as string | null,
     },
     "polygon-amoy": {
         name: "Polygon Amoy (Testnet)",
@@ -88,6 +102,8 @@ export const CHAINS = {
         usdcAddress: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", // Circle testnet USDC
         usdcName: "USDC",
         usdcVersion: "2",
+        identityRegistry: null as string | null,
+        reputationRegistry: null as string | null,
     },
 } as const;
 
